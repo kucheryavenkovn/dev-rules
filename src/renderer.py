@@ -1,5 +1,5 @@
 # FILE: src/renderer.py
-# VERSION: 1.2.0
+# VERSION: 1.2.1
 # START_MODULE_CONTRACT
 #   PURPOSE: Рендеринг HTML-контента в элементы docx: параграфы, таблицы, списки, код, изображения
 #   SCOPE: render_html_to_doc, render_paragraph, render_table, render_list, render_image
@@ -55,7 +55,7 @@ def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0, im
                 doc.add_heading(text, level=level)
 
         elif tag == "p":
-            render_paragraph(doc, element)
+            render_paragraph(doc, element, img_base_dir=img_base_dir)
 
         elif tag == "pre":
             code_el = element.find("code")
@@ -103,7 +103,7 @@ def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0, im
 
 
 # START_BLOCK_RENDER_PARAGRAPH
-def render_paragraph(doc, element):
+def render_paragraph(doc, element, img_base_dir=None):
     """Рендерить HTML параграф с inline-стилями."""
     p = doc.add_paragraph()
     for child in element.children:
@@ -129,6 +129,9 @@ def render_paragraph(doc, element):
                 r.underline = True
         elif child.name == "br":
             pass
+        elif child.name == "img":
+            src = child.get("src", "")
+            render_image(doc, src, img_base_dir)
         else:
             text = child.get_text()
             if text.strip():
@@ -220,3 +223,7 @@ def render_image(doc, src, img_base_dir=None):
         logger.warning("[Renderer][render_image][BLOCK_RENDER_IMAGE] not_found=%s", src)
         doc.add_paragraph(f"[Image: {src}]")
 # END_BLOCK_RENDER_IMAGE
+
+# START_CHANGE_SUMMARY
+#   LAST_CHANGE: v1.2.1 — render_paragraph now handles <img> children inside <p> tags, passing img_base_dir through
+# END_CHANGE_SUMMARY

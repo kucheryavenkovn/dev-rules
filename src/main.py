@@ -1,5 +1,5 @@
 # FILE: src/main.py
-# VERSION: 2.0.0
+# VERSION: 2.0.1
 # START_MODULE_CONTRACT
 #   PURPOSE: Точка входа генератора Word-документа с GRACE-разметкой
 #   SCOPE: main — сборка документа: титульная → оглавление → главы → GRACE инъекция → валидация
@@ -17,6 +17,7 @@ import sys
 import io
 import logging
 from datetime import date
+from pathlib import Path
 
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor
@@ -26,7 +27,7 @@ from docx.oxml import OxmlElement
 
 from src.config import (
     setup_styles, classify_module_type, DOC_NAME, DOC_VERSION,
-    OUTPUT_PATH, GRACE_VERSION, derive_module_id,
+    OUTPUT_PATH, GRACE_VERSION, DOCS_DIR, derive_module_id,
 )
 from src.parser import read_md, md_to_html
 from src.sidebar_order import build_chapter_order
@@ -268,7 +269,12 @@ def main():
                         "rows": "0",
                     })
 
-                render_html_to_doc(doc, html, depth_offset=depth)
+                if ch.source:
+                    source_dir = DOCS_DIR / Path(ch.source).parent
+                    img_base_dir = str(source_dir) if source_dir != DOCS_DIR else str(DOCS_DIR)
+                else:
+                    img_base_dir = str(DOCS_DIR)
+                render_html_to_doc(doc, html, depth_offset=depth, img_base_dir=img_base_dir)
                 para_counter += len(html.split("<p>")) + len(html.split("<h")) + len(html.split("<li>"))
 
         else:
