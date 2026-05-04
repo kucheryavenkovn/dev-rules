@@ -1,0 +1,288 @@
+# FILE: src/config.py
+# VERSION: 1.0.0
+# START_MODULE_CONTRACT
+#   PURPOSE: Конфигурация генератора: пути, версия документа, стили Word, маппинг заголовков → Module ID
+#   SCOPE: derive_module_id, classify_module_type, setup_styles, CHAPTERS, константы путей
+#   DEPENDS: none
+#   LINKS: M-CONFIG
+#   ROLE: RUNTIME
+#   MAP_MODE: EXPORTS
+# END_MODULE_CONTRACT
+#
+# START_MODULE_MAP
+#   DOCS_DIR - путь к каталогу с Markdown-файлами
+#   OUTPUT_PATH - путь к выходному .docx файлу
+#   DOC_NAME - название документа
+#   DOC_VERSION - версия документа
+#   GRACE_VERSION - версия GRACE
+#   CHAPTERS - OrderedDict иерархии глав
+#   derive_module_id - генерация уникального Module ID из заголовка
+#   classify_module_type - классификация типа модуля по HTML
+#   setup_styles - настройка стилей документа Word
+# END_MODULE_MAP
+
+import re
+from datetime import date
+from pathlib import Path
+from collections import OrderedDict
+
+from docx.shared import Pt, Cm, RGBColor
+from docx.enum.style import WD_STYLE_TYPE
+
+# START_BLOCK_CONSTANTS
+DOCS_DIR = Path(r"D:\git\dev-rules\docs")
+OUTPUT_PATH = Path(r"D:\git\dev-rules\Стандарты_разработки.docx")
+DOC_NAME = "Стандарты разработки"
+DOC_VERSION = "1.0"
+GRACE_VERSION = "3.0.0"
+TODAY = date.today().isoformat()
+# END_BLOCK_CONSTANTS
+
+# START_BLOCK_CHAPTERS
+CHAPTERS = OrderedDict([
+    ("Введение", "intro.md"),
+    ("Начало разработки", "begin.md"),
+    ("Оформление кода", "layout.md"),
+    ("Запросы", "request.md"),
+    ("Управляемые формы", "forms.md"),
+    ("Блокировка форм", "blocking_forms.md"),
+    ("Ввод на основании", "input_based_on.md"),
+    ("Расширения", "extensions.md"),
+    ("Печатные формы", "printed_forms.md"),
+    ("Префикс и комментарии", "prefix_comments.md"),
+    ("Принципы эффективной разработки", OrderedDict([
+        ("Обзор", "principles/README.md"),
+        ("KISS — Делай проще", "principles/kiss.md"),
+        ("DRY — Не повторяйся", "principles/dry.md"),
+        ("YAGNI — Вам это не понадобится", "principles/yagni.md"),
+        ("SOLID", "principles/solid.md"),
+        ("Архитектура 1С-решений", "principles/architecture.md"),
+    ])),
+    ("Метаданные", OrderedDict([
+        ("Общие модули", "metadata/common_modules.md"),
+        ("Справочники", "metadata/catalogs.md"),
+        ("Документы", "metadata/documents.md"),
+        ("Регистры накопления", "metadata/accumulation_registers.md"),
+        ("Регистры сведений", "metadata/information_registers.md"),
+        ("Подсистемы", "metadata/subsystem.md"),
+        ("Отчеты", "metadata/reports.md"),
+        ("Роли", "metadata/roles.md"),
+        ("Подписки на события", "metadata/event_subscriptions.md"),
+        ("Регламентные задания", "metadata/scheduled_jobs.md"),
+    ])),
+    ("Система управления версиями", OrderedDict([
+        ("Обзор", "version-control/README.md"),
+        ("Хранилище 1С", "version-control/1c-storage/README.md"),
+        ("Работа с Git", OrderedDict([
+            ("Обзор", "version-control/git/README.md"),
+            ("Основные команды Git", "version-control/git/commands.md"),
+            ("Настройка SSH ключей", "version-control/git/ssh.md"),
+            ("Git Flow", "version-control/git/gitflow.md"),
+            ("Настройка исключений Git", "version-control/git/gitignore.md"),
+            ("Настройка атрибутов Git", "version-control/git/gitattributes.md"),
+            ("Git LFS", "version-control/git/lfs.md"),
+            ("Подмодули Git", "version-control/git/submodules.md"),
+        ])),
+    ])),
+    ("Среды разработки", OrderedDict([
+        ("Обзор", "ide/README.md"),
+        ("Phoenix BSL", "ide/phoenix-bsl.md"),
+        ("Visual Studio Code", "ide/vscode.md"),
+        ("1С:EDT", "ide/edt.md"),
+    ])),
+    ("DevOps", OrderedDict([
+        ("Обзор", "cicd/README.md"),
+        ("Code-review", "cicd/code-review/README.md"),
+        ("Конвейеры CI/CD", OrderedDict([
+            ("Обзор", "cicd/pipelines/README.md"),
+            ("Профиль Jenkins", "cicd/pipelines/jenkins-pipeline-profile.md"),
+            ("Профиль GitLab CI", "cicd/pipelines/gitlab-ci-pipeline-profile.md"),
+        ])),
+        ("Тестирование", OrderedDict([
+            ("Обзор", "cicd/testing/README.md"),
+            ("Стратегия тестирования", "cicd/testing/automation-strategy.md"),
+            ("Инициализация тестовой ИБ", "cicd/testing/data-initialization.md"),
+            ("Чек-лист ЗУП", "cicd/testing/hrm-checklist.md"),
+        ])),
+        ("Доставка и развертывание", "cicd/delivery/README.md"),
+        ("SonarQube", "cicd/sonar/README.md"),
+    ])),
+    ("Интеграции", OrderedDict([
+        ("Обзор", "integrations/README.md"),
+        ("Брокеры сообщений", OrderedDict([
+            ("Обзор", "integrations/messaging/README.md"),
+            ("RabbitMQ", OrderedDict([
+                ("Обзор", "integrations/messaging/rabbitmq/README.md"),
+                ("Основные концепции", "integrations/messaging/rabbitmq/concepts.md"),
+                ("Регламент именования", "integrations/messaging/rabbitmq/naming.md"),
+                ("БИТ.Адаптер", "integrations/messaging/rabbitmq/bit-adapter/README.md"),
+            ])),
+            ("Apache Kafka", "integrations/messaging/kafka/README.md"),
+        ])),
+    ])),
+    ("Руководства пользователя", OrderedDict([
+        ("Обзор", "manuals/README.md"),
+        ("Окружения", "manuals/environments.md"),
+        ("Пользователи", "manuals/users.md"),
+        ("Обновление конфигураций", "manuals/update_regulations.md"),
+        ("Жизненный цикл задачи", "manuals/task-lifecycle.md"),
+    ])),
+    ("Глоссарий терминов", "glossary.md"),
+])
+# END_BLOCK_CHAPTERS
+
+# START_BLOCK_MODULE_ID_MAP
+_MODULE_ID_SPECIAL = {
+    "Введение": "M-INTRO",
+    "Начало разработки": "M-BEGIN",
+    "Оформление кода": "M-LAYOUT",
+    "Запросы": "M-QUERY",
+    "Управляемые формы": "M-FORMS",
+    "Блокировка форм": "M-BLOCK",
+    "Ввод на основании": "M-INPUT",
+    "Расширения": "M-EXT",
+    "Печатные формы": "M-PRINT",
+    "Префикс и комментарии": "M-PREFIX",
+    "Принципы эффективной разработки": "M-PRINC",
+    "Метаданные": "M-META",
+    "Система управления версиями": "M-VC",
+    "Среды разработки": "M-IDE",
+    "DevOps": "M-DEVOPS",
+    "Интеграции": "M-INTEG",
+    "Руководства пользователя": "M-MANUAL",
+    "Глоссарий терминов": "M-GLOSS",
+    "KISS — Делай проще": "M-KISS",
+    "DRY — Не повторяйся": "M-DRY",
+    "YAGNI — Вам это не понадобится": "M-YAGNI",
+    "SOLID": "M-SOLID",
+    "Архитектура 1С-решений": "M-ARCH",
+    "Общие модули": "M-COMMON",
+    "Справочники": "M-CATALOG",
+    "Документы": "M-DOCS",
+    "Регистры накопления": "M-ACCREG",
+    "Регистры сведений": "M-INFREG",
+    "Подсистемы": "M-SUBSYS",
+    "Отчеты": "M-REPORTS",
+    "Роли": "M-ROLES",
+    "Подписки на события": "M-EVTSUB",
+    "Регламентные задания": "M-SCHED",
+    "Обзор": "M-OVERVIEW",
+    "Хранилище 1С": "M-1CSTOR",
+    "Работа с Git": "M-GIT",
+    "Основные команды Git": "M-GITCMD",
+    "Настройка SSH ключей": "M-SSH",
+    "Git Flow": "M-GITFLOW",
+    "Настройка исключений Git": "M-GITIGN",
+    "Настройка атрибутов Git": "M-GITATTR",
+    "Git LFS": "M-LFS",
+    "Подмодули Git": "M-SUBMOD",
+    "Phoenix BSL": "M-PHOENIX",
+    "Visual Studio Code": "M-VSCODE",
+    "1С:EDT": "M-EDT",
+    "Code-review": "M-CR",
+    "Конвейеры CI/CD": "M-PIPE",
+    "Профиль Jenkins": "M-JENKINS",
+    "Профиль GitLab CI": "M-GITLAB",
+    "Тестирование": "M-TEST",
+    "Стратегия тестирования": "M-TESTSTR",
+    "Инициализация тестовой ИБ": "M-TESTDATA",
+    "Чек-лист ЗУП": "M-HRMCHK",
+    "Доставка и развертывание": "M-DELIVER",
+    "SonarQube": "M-SONAR",
+    "Брокеры сообщений": "M-MSG",
+    "RabbitMQ": "M-RMQ",
+    "Основные концепции": "M-RMQCON",
+    "Регламент именования": "M-RMQNAM",
+    "БИТ.Адаптер": "M-BITADPT",
+    "Apache Kafka": "M-KAFKA",
+    "Окружения": "M-ENV",
+    "Пользователи": "M-USERS",
+    "Обновление конфигураций": "M-UPDATE",
+    "Жизненный цикл задачи": "M-TASK",
+}
+# END_BLOCK_MODULE_ID_MAP
+
+
+# START_BLOCK_DERIVE_ID
+def derive_module_id(heading, existing_ids):
+    """Генерация Module ID из заголовка. Возвращает уникальный латинский ID."""
+    mid = _MODULE_ID_SPECIAL.get(heading)
+    if mid:
+        if mid not in existing_ids:
+            return mid
+        base = mid
+        counter = 2
+        while f"{base}-{counter}" in existing_ids:
+            counter += 1
+        return f"{base}-{counter}"
+    clean = re.sub(r"[^A-Za-z0-9]", "", heading).upper()
+    if len(clean) >= 3:
+        candidate = "M-" + clean[:5]
+    else:
+        candidate = "M-SEC" + str(len(existing_ids) + 100)
+    while candidate in existing_ids:
+        candidate = candidate + str(len(existing_ids))
+    return candidate
+# END_BLOCK_DERIVE_ID
+
+
+# START_BLOCK_CLASSIFY_TYPE
+def classify_module_type(html_content):
+    """Определить тип модуля GRACE по HTML-содержимому."""
+    has_tables = "<table>" in html_content.lower()
+    has_code = "<code>" in html_content.lower() or "<pre>" in html_content.lower()
+    has_prose = "<p>" in html_content.lower()
+    if has_tables and has_code and has_prose:
+        return "MIXED"
+    if has_tables and has_code:
+        return "MIXED"
+    if has_tables:
+        return "DATA"
+    if has_code or has_prose:
+        return "NARRATIVE"
+    return "NARRATIVE"
+# END_BLOCK_CLASSIFY_TYPE
+
+
+# START_BLOCK_SETUP_STYLES
+def setup_styles(doc):
+    """Настроить стили документа Word."""
+    style = doc.styles["Normal"]
+    style.font.name = "Calibri"
+    style.font.size = Pt(11)
+    style.paragraph_format.space_after = Pt(6)
+    style.paragraph_format.line_spacing = 1.15
+
+    for i in range(1, 5):
+        sname = f"Heading {i}"
+        if sname in doc.styles:
+            s = doc.styles[sname]
+            s.font.name = "Calibri"
+            if i == 1:
+                s.font.size = Pt(22)
+                s.font.color.rgb = RGBColor(0x1F, 0x3A, 0x5F)
+                s.font.bold = True
+            elif i == 2:
+                s.font.size = Pt(16)
+                s.font.color.rgb = RGBColor(0x2C, 0x5F, 0x2D)
+                s.font.bold = True
+            elif i == 3:
+                s.font.size = Pt(13)
+                s.font.color.rgb = RGBColor(0x4A, 0x4A, 0x4A)
+                s.font.bold = True
+            elif i == 4:
+                s.font.size = Pt(11)
+                s.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+                s.font.bold = True
+            s.paragraph_format.space_before = Pt(12)
+            s.paragraph_format.space_after = Pt(6)
+
+    if "Code" not in [s.name for s in doc.styles]:
+        cs = doc.styles.add_style("Code", WD_STYLE_TYPE.PARAGRAPH)
+        cs.font.name = "Consolas"
+        cs.font.size = Pt(9)
+        cs.font.color.rgb = RGBColor(0x2D, 0x2D, 0x2D)
+        cs.paragraph_format.space_before = Pt(2)
+        cs.paragraph_format.space_after = Pt(2)
+        cs.paragraph_format.left_indent = Cm(0.5)
+# END_BLOCK_SETUP_STYLES
