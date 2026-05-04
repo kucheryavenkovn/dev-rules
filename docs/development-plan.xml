@@ -1,0 +1,330 @@
+<DevelopmentPlan VERSION="0.2.0">
+  <ArchitectureNotes>
+    <objective>Надёжная генерация структурированного Word-документа с GRACE-разметкой из Markdown-источников. Приоритет — корректность XML-структуры и парность закладок.</objective>
+    <non-goal>Полная fidelity-конвертация всех элементов Markdown (Mermaid, SVG, сложные таблицы) в v1.</non-goal>
+    <risk-1>Mermaid-диаграммы из Markdown не конвертируются — теряются при рендеринге.</risk-1>
+    <risk-2>Изображения с относительными путями не встраиваются в .docx.</risk-2>
+    <risk-3>Ручное редактирование в Word может сломать GRACE-закладки.</risk-3>
+  </ArchitectureNotes>
+
+  <Modules>
+    <M-CONFIG NAME="Config" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Конфигурация генератора: пути, версия, стили, маппинг заголовков → Module ID</purpose>
+        <inputs>
+          <param name="DOCS_DIR" type="Path" />
+          <param name="OUTPUT_PATH" type="Path" />
+          <param name="DOC_NAME" type="str" />
+          <param name="DOC_VERSION" type="str" />
+        </inputs>
+        <outputs>
+          <param name="styles" type="dict" />
+          <param name="module_id_map" type="dict" />
+        </outputs>
+        <errors>
+          <error code="CONFIG_PATH_NOT_FOUND">DOCS_DIR не существует</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-setup_styles PURPOSE="Настроить стили документа Word" />
+        <export-derive_module_id PURPOSE="Генерация Module ID из заголовка" />
+        <export-classify_module_type PURPOSE="Классификация типа модуля" />
+      </interface>
+      <depends>none</depends>
+      <target>
+        <source>generate-grace-docx.py (секции CONFIGURATION + MODULE_ID)</source>
+        <tests>tests/unit/test_config.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[Config]</log-prefix>
+        <critical-block>BLOCK_DERIVE_ID</critical-block>
+      </observability>
+      <verification-ref>V-M-CONFIG</verification-ref>
+      <notes>
+        <note-1>Маппинг Module ID критичен — должен быть детерминистическим и без коллизий.</note-1>
+      </notes>
+    </M-CONFIG>
+
+    <M-PARSER NAME="MarkdownParser" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Чтение .md файлов и конвертация в HTML через markdown-библиотеку</purpose>
+        <inputs>
+          <param name="rel_path" type="str" />
+        </inputs>
+        <outputs>
+          <param name="title" type="str | None" />
+          <param name="html_content" type="str" />
+        </outputs>
+        <errors>
+          <error code="FILE_NOT_FOUND">Markdown файл не найден по указанному пути</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-read_md PURPOSE="Прочитать .md и вернуть (title, clean_text)" />
+        <export-md_to_html PURPOSE="Конвертировать Markdown → HTML" />
+      </interface>
+      <depends>M-CONFIG</depends>
+      <target>
+        <source>generate-grace-docx.py (секция PARSING)</source>
+        <tests>tests/unit/test_parser.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[Parser]</log-prefix>
+        <critical-block>BLOCK_PARSE_FRONTMATTER</critical-block>
+      </observability>
+      <verification-ref>V-M-PARSER</verification-ref>
+      <notes>
+        <note-1>Frontmatter содержит title и slug — нужно извлекать корректно.</note-1>
+      </notes>
+    </M-PARSER>
+
+    <M-STRUCTURE NAME="ChapterStructure" TYPE="CORE_LOGIC" LAYER="0" ORDER="3" STATUS="planned">
+      <contract>
+        <purpose>Иерархия глав репозитория в OrderedDict с маппингом на файлы</purpose>
+        <inputs>
+          <param name="chapters_dict" type="OrderedDict" />
+        </inputs>
+        <outputs>
+          <param name="flat_chapters" type="list[ChapterInfo]" />
+        </outputs>
+        <errors>
+          <error code="DUPLICATE_HEADING">Одинаковые заголовки глав на одном уровне</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-collect_chapters PURPOSE="Рекурсивно собрать плоский список глав" />
+      </interface>
+      <depends>M-CONFIG</depends>
+      <target>
+        <source>generate-grace-docx.py (OrderedDict CHAPTERS + collect_chapters)</source>
+        <tests>tests/unit/test_structure.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[Structure]</log-prefix>
+        <critical-block>BLOCK_COLLECT_FLAT</critical-block>
+      </observability>
+      <verification-ref>V-M-STRUCTURE</verification-ref>
+      <notes>
+        <note-1>Порядок глав критичен — влияет на нумерацию закладок и оглавление.</note-1>
+      </notes>
+    </M-STRUCTURE>
+
+    <M-RENDERER NAME="DocxRenderer" TYPE="CORE_LOGIC" LAYER="1" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Рендеринг HTML в элементы docx: параграфы, таблицы, списки, код</purpose>
+        <inputs>
+          <param name="doc" type="Document" />
+          <param name="html_content" type="str" />
+          <param name="depth_offset" type="int" />
+        </inputs>
+        <outputs>
+          <param name="modified doc" type="Document" />
+        </outputs>
+        <errors>
+          <error code="TABLE_PARSE_ERROR">Некорректная HTML-таблица</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-render_html_to_doc PURPOSE="Главная точка входа рендеринга" />
+        <export-render_paragraph PURPOSE="Рендеринг параграфа с inline-стилями" />
+        <export-render_table PURPOSE="Рендеринг таблицы" />
+        <export-render_list PURPOSE="Рендеринг списка с вложенностью" />
+      </interface>
+      <depends>M-PARSER, M-CONFIG</depends>
+      <target>
+        <source>generate-grace-docx.py (секция RENDERING)</source>
+        <tests>tests/unit/test_renderer.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[Renderer]</log-prefix>
+        <critical-block>BLOCK_RENDER_TABLE</critical-block>
+      </observability>
+      <verification-ref>V-M-RENDERER</verification-ref>
+      <notes>
+        <note-1>Таблицы — самая сложная часть: нужно корректно определять заголовки и данные.</note-1>
+      </notes>
+    </M-RENDERER>
+
+    <M-GRACE NAME="GraceInjector" TYPE="CORE_LOGIC" LAYER="1" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Инъекция 5 GRACE XML-частей и парных закладок в .docx</purpose>
+        <inputs>
+          <param name="docx_path" type="Path" />
+          <param name="modules_info" type="list[dict]" />
+        </inputs>
+        <outputs>
+          <param name="grace_docx_path" type="Path" />
+        </outputs>
+        <errors>
+          <error code="ZIP_ERROR">Ошибка при распаковке/упаковке .docx</error>
+          <error code="XML_INVALID">Сгенерированный XML не парсится</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-make_grace_manifest PURPOSE="Генерация grace-manifest.xml" />
+        <export-make_grace_graph PURPOSE="Генерация grace-graph.xml с модулями и элементами" />
+        <export-make_grace_contracts PURPOSE="Генерация grace-contracts.xml" />
+        <export-make_grace_verification PURPOSE="Генерация grace-verification.xml" />
+      </interface>
+      <depends>M-STRUCTURE</depends>
+      <target>
+        <source>generate-grace-docx.py (секция GRACE XML)</source>
+        <tests>tests/unit/test_grace_injector.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[GraceInjector]</log-prefix>
+        <critical-block>BLOCK_INJECT_BOOKMARKS</critical-block>
+        <critical-block>BLOCK_WRITE_XML_PARTS</critical-block>
+      </observability>
+      <verification-ref>V-M-GRACE</verification-ref>
+      <notes>
+        <note-1>Парность закладок — критический инвариант. bookmarkStart/bookmarkEnd должны быть сбалансированы.</note-1>
+        <note-2>Content_Types.xml и _rels/document.xml.rels должны быть обновлены корректно.</note-2>
+      </notes>
+    </M-GRACE>
+
+    <M-DOCXBUILDER NAME="DocumentBuilder" TYPE="ENTRY_POINT" LAYER="2" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Точка входа: сборка полного документа с титульной страницей, оглавлением, главами</purpose>
+        <inputs>
+          <param name="chapters" type="list[ChapterInfo]" />
+        </inputs>
+        <outputs>
+          <param name="base_docx" type="Path" />
+          <param name="grace_docx" type="Path" />
+        </outputs>
+        <errors>
+          <error code="GENERATION_FAILED">Ошибка при генерации документа</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-main PURPOSE="Точка входа скрипта" />
+      </interface>
+      <depends>M-RENDERER, M-STRUCTURE, M-GRACE, M-VALIDATOR</depends>
+      <target>
+        <source>generate-grace-docx.py (функция main)</source>
+        <tests>tests/integration/test_docx_builder.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[DocxBuilder]</log-prefix>
+        <critical-block>BUILD_COVER</critical-block>
+        <critical-block>BUILD_TOC</critical-block>
+        <critical-block>BUILD_CHAPTERS</critical-block>
+      </observability>
+      <verification-ref>V-M-DOCXBUILDER</verification-ref>
+      <notes>
+        <note-1>Титульная страница — 6 пустых параграфов + центрированный заголовок.</note-1>
+      </notes>
+    </M-DOCXBUILDER>
+
+    <M-VALIDATOR NAME="OutputValidator" TYPE="UTILITY" LAYER="1" ORDER="3" STATUS="planned">
+      <contract>
+        <purpose>Проверка целостности сгенерированного .docx: XML-валидация, баланс закладок, Content_Types</purpose>
+        <inputs>
+          <param name="docx_path" type="Path" />
+        </inputs>
+        <outputs>
+          <param name="validation_result" type="dict" />
+        </outputs>
+        <errors>
+          <error code="BOOKMARK_IMBALANCE">Количество bookmarkStart != bookmarkEnd</error>
+          <error code="MISSING_GRACE_PART">GRACE XML-часть отсутствует в архиве</error>
+          <error code="XML_PARSE_ERROR">XML-часть не парсится</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-validate_grace_docx PURPOSE="Полная проверка GRACE .docx" />
+      </interface>
+      <depends>M-GRACE</depends>
+      <target>
+        <source>generate-grace-docx.py (секция VALIDATION — планируется)</source>
+        <tests>tests/unit/test_validator.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[Validator]</log-prefix>
+        <critical-block>BLOCK_VALIDATE_BOOKMARKS</critical-block>
+        <critical-block>BLOCK_VALIDATE_XML</critical-block>
+      </observability>
+      <verification-ref>V-M-VALIDATOR</verification-ref>
+      <notes>
+        <note-1>Валидатор вызывается после генерации и может использоваться автономными агентами после редактирования.</note-1>
+      </notes>
+    </M-VALIDATOR>
+  </Modules>
+
+  <DataFlow>
+    <DF-001 NAME="FullGeneration" TRIGGER="Developer запускает скрипт">
+      <step-1>M-CONFIG загружает конфигурацию (пути, стили, маппинг глав)</step-1>
+      <step-2>M-STRUCTURE строит плоский список глав из CHAPTERS OrderedDict</step-2>
+      <step-3>M-DOCXBUILDER создаёт пустой Document, настраивает стили через M-CONFIG</step-3>
+      <step-4>M-DOCXBUILDER генерирует титульную страницу и оглавление</step-4>
+      <step-5>Для каждой главы: M-PARSER читает .md → M-RENDERER рендерит HTML в docx</step-5>
+      <step-6>M-DOCXBUILDER вставляет GRACE-закладки для каждого раздела</step-6>
+      <step-7>M-DOCXBUILDER сохраняет базовый .docx</step-7>
+      <step-8>M-GRACE распаковывает .docx, инъектирует 5 XML-частей, обновляет Content_Types и rels</step-8>
+      <step-9>M-GRACE упаковывает обратно в GRACE_.docx</step-9>
+      <step-10>M-VALIDATOR проверяет целостность выходного файла</step-10>
+      <evidence>Лог: [DocxBuilder][main][BUILD_COMPLETE] modules=N, bookmarks=N, xml_parts=5</evidence>
+    </DF-001>
+
+    <DF-002 NAME="AgentEdit" TRIGGER="Agent получает GRACE .docx для редактирования">
+      <step-1>Agent распаковывает .docx, читает grace-manifest.xml</step-1>
+      <step-2>Agent читает grace-instructions.xml для правил</step-2>
+      <step-3>Agent ищет целевой модуль в grace-graph.xml по закладке</step-3>
+      <step-4>Agent проверяет контракт в grace-contracts.xml</step-4>
+      <step-5>Agent выполняет хирургическое редактирование</step-5>
+      <step-6>Agent обновляет grace-graph.xml (para-range, ELEMENTS)</step-6>
+      <step-7>Agent запускает верификацию из grace-verification.xml</step-7>
+      <step-8>Agent упаковывает .docx обратно</step-8>
+      <evidence>Все StructuralInvariants пройдены; bookmarks сбалансированы</evidence>
+    </DF-002>
+
+    <DF-003 NAME="AddChapter" TRIGGER="Developer добавляет .md файл в docs/">
+      <step-1>Developer добавляет файл и обновляет CHAPTERS в скрипте</step-1>
+      <step-2>Запускается DF-001 FullGeneration</step-2>
+      <step-3>Новый модуль получает уникальный Module ID и закладку</step-3>
+      <step-4>Оглавление обновляется автоматически</step-4>
+      <evidence>Новый модуль visible в grace-graph.xml; закладка парная</evidence>
+    </DF-003>
+
+    <DF-004 NAME="VerifyDocx" TRIGGER="Agent/Developer запускает валидацию">
+      <step-1>M-VALIDATOR распаковывает .docx</step-1>
+      <step-2>Проверяет парность bookmarkStart/bookmarkEnd</step-2>
+      <step-3>Валидирует все grace-*.xml как well-formed XML</step-3>
+      <step-4>Проверяет регистрацию в Content_Types и rels</step-4>
+      <step-5>Сравнивает количество H1 с количеством модулей в grace-graph.xml</step-5>
+      <evidence>Отчёт: все инварианты пройдены / список нарушений</evidence>
+    </DF-004>
+  </DataFlow>
+
+  <ImplementationOrder>
+    <Phase-1 name="Refactor: modularize monolith" status="done">
+      <goal>Разбить monolith generate-grace-docx.py на модули с контрактами; покрыть юнит-тестами</goal>
+      <step-1 module="M-CONFIG" status="done" verification="V-M-CONFIG">Выделить конфигурацию в src/config.py с GRACE-разметкой</step-1>
+      <step-2 module="M-PARSER" status="done" verification="V-M-PARSER">Выделить парсер Markdown в src/parser.py с GRACE-разметкой</step-2>
+      <step-3 module="M-STRUCTURE" status="done" verification="V-M-STRUCTURE">Выделить структуру глав в src/structure.py</step-3>
+      <step-4 module="M-VALIDATOR" status="done" verification="V-M-VALIDATOR">Реализовать валидатор в src/validator.py</step-4>
+    </Phase-1>
+
+    <Phase-2 name="Enhance: renderer and GRACE injector" status="pending">
+      <goal>Улучшить качество рендеринга и надёжность GRACE-инъекции</goal>
+      <step-1 module="M-RENDERER" status="pending" verification="V-M-RENDERER">Улучшить рендеринг таблиц, кода, изображений</step-1>
+      <step-2 module="M-GRACE" status="pending" verification="V-M-GRACE">Добавить element inventory (TABLE-DATA, TABLE-STRUCT) в grace-graph.xml</step-2>
+      <step-3 module="M-DOCXBUILDER" status="pending" verification="V-M-DOCXBUILDER">Интегрировать все модули в новую точку входа</step-3>
+    </Phase-2>
+
+    <Phase-3 name="Verify: integration and regression" status="pending">
+      <goal>Полная интеграционная проверка и регрессия</goal>
+      <step-1 module="M-DOCXBUILDER" status="pending" verification="V-M-DOCXBUILDER">Сквозной тест: Markdown → GRACE .docx → валидация</step-1>
+    </Phase-3>
+  </ImplementationOrder>
+
+  <ExecutionPolicy>
+    <default-profile>balanced</default-profile>
+    <controller-owns>docs/development-plan.xml, docs/knowledge-graph.xml, docs/verification-plan.xml</controller-owns>
+    <worker-owns>Только модули src/*.py и тесты tests/ внутри утверждённого write scope.</worker-owns>
+    <max-fix-attempts-per-step>2</max-fix-attempts-per-step>
+    <replan-trigger>Новая зависимость, конфликт контрактов, несовместимый API python-docx.</replan-trigger>
+    <checkpoint-requirement>Каждый шаг оставляет: assumptions, commands, evidence, next action.</checkpoint-requirement>
+  </ExecutionPolicy>
+</DevelopmentPlan>
