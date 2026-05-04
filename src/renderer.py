@@ -1,9 +1,9 @@
 # FILE: src/renderer.py
-# VERSION: 1.0.0
+# VERSION: 1.2.0
 # START_MODULE_CONTRACT
-#   PURPOSE: Рендеринг HTML-контента в элементы docx: параграфы, таблицы, списки, код
-#   SCOPE: render_html_to_doc, render_paragraph, render_table, render_list
-#   DEPENDS: M-PARSER, M-CONFIG
+#   PURPOSE: Рендеринг HTML-контента в элементы docx: параграфы, таблицы, списки, код, изображения
+#   SCOPE: render_html_to_doc, render_paragraph, render_table, render_list, render_image
+#   DEPENDS: M-CONFIG, M-TYPES
 #   LINKS: M-RENDERER
 #   ROLE: RUNTIME
 #   MAP_MODE: EXPORTS
@@ -13,21 +13,25 @@
 #   render_html_to_doc - главная функция рендеринга HTML → docx
 #   render_paragraph - рендеринг параграфа с inline-стилями
 #   render_table - рендеринг HTML таблицы в Word таблицу
-#   render_list - рендеринг списка с вложенностью
+#   render_list - рендеринг списка с вложенностью (явная нумерация, перезапуск)
+#   render_image - встраивание изображения из docs/ в docx
 # END_MODULE_MAP
 
 import logging
+from pathlib import Path
 
 from bs4 import BeautifulSoup, NavigableString
 
-from docx.shared import Pt, Cm, RGBColor
+from src.types import ChapterInfo
+
+from docx.shared import Pt, Cm, RGBColor, Inches
 from docx.enum.table import WD_TABLE_ALIGNMENT
 
 logger = logging.getLogger(__name__)
 
 
 # START_BLOCK_RENDER_HTML
-def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0):
+def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0, img_base_dir=None):
     """Рендерить HTML-контент в параграфы docx."""
     if _recursion_depth > 5:
         return
@@ -82,9 +86,13 @@ def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0):
             pass
 
         elif tag in ("div", "section"):
-            render_html_to_doc(doc, str(element), depth_offset, _recursion_depth + 1)
+            render_html_to_doc(doc, str(element), depth_offset, _recursion_depth + 1, img_base_dir=img_base_dir)
 
-        elif tag in ("img", "svg", "mermaid"):
+        elif tag == "img":
+            src = element.get("src", "")
+            render_image(doc, src, img_base_dir)
+
+        elif tag in ("svg", "mermaid"):
             pass
 
         else:
@@ -136,13 +144,12 @@ def render_list(doc, element, ordered=False, level=0):
     for idx, li in enumerate(items):
         text = li.get_text(strip=True)
         indent = Cm(0.5 * (level + 1))
-        p = doc.add_paragraph(text)
-        p.paragraph_format.left_indent = indent
-        style_names = [s.name for s in doc.styles]
         if ordered:
-            p.style = doc.styles["List Number"] if "List Number" in style_names else doc.styles["Normal"]
+            p = doc.add_paragraph(f"{idx + 1}. {text}")
         else:
-            p.style = doc.styles["List Bullet"] if "List Bullet" in style_names else doc.styles["Normal"]
+            p = doc.add_paragraph(text)
+        p.paragraph_format.left_indent = indent
+        p.style = doc.styles["Normal"]
 
         sublists = li.find_all(["ul", "ol"], recursive=False)
         for sub in sublists:
@@ -188,3 +195,28 @@ def render_table(doc, element):
     logger.info("[Renderer][render_table][BLOCK_RENDER_TABLE] rows=%d cols=%d", len(rows), num_cols)
     doc.add_paragraph()
 # END_BLOCK_RENDER_TABLE
+
+
+# START_BLOCK_RENDER_IMAGE
+def render_image(doc, src, img_base_dir=None):
+    """Встроить изображение в docx или вставить плейсхолдер."""
+    if not src:
+        return
+
+    image_path = None
+    if img_base_dir is not None:
+        candidate = Path(img_base_dir) / src
+        if candidate.exists():
+            image_path = candidate
+
+    if image_path is not None:
+        try:
+            doc.add_picture(str(image_path), width=Inches(5.5))
+            logger.info("[Renderer][render_image][BLOCK_RENDER_IMAGE] embedded=%s", src)
+        except Exception as e:
+            logger.warning("[Renderer][render_image][BLOCK_RENDER_IMAGE] failed=%s error=%s", src, e)
+            doc.add_paragraph(f"[Image: {src}]")
+    else:
+        logger.warning("[Renderer][render_image][BLOCK_RENDER_IMAGE] not_found=%s", src)
+        doc.add_paragraph(f"[Image: {src}]")
+# END_BLOCK_RENDER_IMAGE
