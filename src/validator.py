@@ -13,10 +13,13 @@
 #   validate_grace_docx - полная проверка GRACE .docx файла
 # END_MODULE_MAP
 
+import logging
 import zipfile
 from pathlib import Path
 
 from lxml import etree
+
+logger = logging.getLogger(__name__)
 
 
 GRACE_PART_NAMES = [
@@ -41,6 +44,10 @@ def _validate_grace_xml(zf):
             errors.append(f"MISSING: {path}")
         except etree.XMLSyntaxError as e:
             errors.append(f"INVALID XML: {path} — {e}")
+    if errors:
+        logger.warning("[Validator][_validate_grace_xml][BLOCK_VALIDATE_XML] errors=%d %s", len(errors), "; ".join(errors))
+    else:
+        logger.info("[Validator][_validate_grace_xml][BLOCK_VALIDATE_XML] all_parts=%d ok", len(GRACE_PART_NAMES))
     return errors
 # END_BLOCK_VALIDATE_XML
 
@@ -58,6 +65,10 @@ def _validate_bookmarks(zf):
         errors.append(f"BOOKMARK IMBALANCE: bookmarkStart={starts}, bookmarkEnd={ends}")
     if grace_count == 0:
         errors.append("NO GRACE BOOKMARKS FOUND")
+    if errors:
+        logger.warning("[Validator][_validate_bookmarks][BLOCK_VALIDATE_BOOKMARKS] starts=%d ends=%d grace=%d errors=%d", starts, ends, grace_count, len(errors))
+    else:
+        logger.info("[Validator][_validate_bookmarks][BLOCK_VALIDATE_BOOKMARKS] starts=%d ends=%d grace=%d balanced=true", starts, ends, grace_count)
     return starts, ends, grace_count, errors
 # END_BLOCK_VALIDATE_BOOKMARKS
 
@@ -81,6 +92,10 @@ def _validate_content_types(zf):
     except KeyError:
         errors.append("RELS FILE MISSING")
 
+    if errors:
+        logger.warning("[Validator][_validate_content_types][BLOCK_VALIDATE_CONTENT_TYPES] errors=%d %s", len(errors), "; ".join(errors))
+    else:
+        logger.info("[Validator][_validate_content_types][BLOCK_VALIDATE_CONTENT_TYPES] content_types=ok rels=ok")
     return errors
 # END_BLOCK_VALIDATE_CONTENT_TYPES
 
@@ -90,8 +105,10 @@ def validate_grace_docx(docx_path):
     """Полная проверка GRACE .docx. Возвращает dict с результатами."""
     path = Path(docx_path)
     if not path.exists():
+        logger.error("[Validator][validate_grace_docx][BLOCK_VALIDATE_GRACE_DOCX] file not found: %s", path)
         return {"valid": False, "error": f"File not found: {path}"}
 
+    logger.info("[Validator][validate_grace_docx][BLOCK_VALIDATE_GRACE_DOCX] validating: %s", path.name)
     result = {"valid": True, "file": str(path), "errors": [], "details": {}}
 
     with zipfile.ZipFile(str(path), "r") as zf:
@@ -109,5 +126,6 @@ def validate_grace_docx(docx_path):
 
     if result["errors"]:
         result["valid"] = False
+    logger.info("[Validator][validate_grace_docx][BLOCK_VALIDATE_GRACE_DOCX] valid=%s errors=%d", result["valid"], len(result["errors"]))
     return result
 # END_BLOCK_VALIDATE_GRACE_DOCX

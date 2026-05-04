@@ -21,6 +21,8 @@ from datetime import date
 from docx import Document
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 
 from src.config import (
     setup_styles, classify_module_type, DOC_NAME, DOC_VERSION,
@@ -35,6 +37,94 @@ from src.graph_sync import sync_graph_from_fs
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _make_run_rpr(font_size_pt, bold=False, color_val='1F3A5F', underline=False):
+    rPr = OxmlElement('w:rPr')
+    sz = OxmlElement('w:sz')
+    sz.set(qn('w:val'), str(int(font_size_pt * 2)))
+    rPr.append(sz)
+    szCs = OxmlElement('w:szCs')
+    szCs.set(qn('w:val'), str(int(font_size_pt * 2)))
+    rPr.append(szCs)
+    rFonts = OxmlElement('w:rFonts')
+    rFonts.set(qn('w:ascii'), 'Calibri')
+    rFonts.set(qn('w:hAnsi'), 'Calibri')
+    rPr.append(rFonts)
+    if bold:
+        rPr.append(OxmlElement('w:b'))
+    c = OxmlElement('w:color')
+    c.set(qn('w:val'), color_val)
+    rPr.append(c)
+    if underline:
+        u = OxmlElement('w:u')
+        u.set(qn('w:val'), 'single')
+        rPr.append(u)
+    return rPr
+
+
+def add_toc_hyperlink(paragraph, bookmark_name, text, font_size_pt, bold=False):
+    hyperlink = OxmlElement('w:hyperlink')
+    hyperlink.set(qn('w:anchor'), bookmark_name)
+    new_run = OxmlElement('w:r')
+    new_run.append(_make_run_rpr(font_size_pt, bold=bold, color_val='1F3A5F', underline=True))
+    t = OxmlElement('w:t')
+    t.text = text
+    t.set(qn('xml:space'), 'preserve')
+    new_run.append(t)
+    hyperlink.append(new_run)
+    paragraph._element.append(hyperlink)
+
+
+def add_pageref_field(paragraph, bookmark_name, font_size_pt):
+    r_begin = OxmlElement('w:r')
+    fc_begin = OxmlElement('w:fldChar')
+    fc_begin.set(qn('w:fldCharType'), 'begin')
+    r_begin.append(fc_begin)
+    paragraph._element.append(r_begin)
+
+    r_instr = OxmlElement('w:r')
+    instrText = OxmlElement('w:instrText')
+    instrText.set(qn('xml:space'), 'preserve')
+    instrText.text = f' PAGEREF {bookmark_name} \\h '
+    r_instr.append(instrText)
+    paragraph._element.append(r_instr)
+
+    r_sep = OxmlElement('w:r')
+    fc_sep = OxmlElement('w:fldChar')
+    fc_sep.set(qn('w:fldCharType'), 'separate')
+    r_sep.append(fc_sep)
+    paragraph._element.append(r_sep)
+
+    r_text = OxmlElement('w:r')
+    r_text.append(_make_run_rpr(font_size_pt, color_val='1F3A5F'))
+    t = OxmlElement('w:t')
+    t.text = '0'
+    r_text.append(t)
+    paragraph._element.append(r_text)
+
+    r_end = OxmlElement('w:r')
+    fc_end = OxmlElement('w:fldChar')
+    fc_end.set(qn('w:fldCharType'), 'end')
+    r_end.append(fc_end)
+    paragraph._element.append(r_end)
+
+
+def add_toc_tab_stop(paragraph):
+    pPr = paragraph._element.get_or_add_pPr()
+    tabs = OxmlElement('w:tabs')
+    tab = OxmlElement('w:tab')
+    tab.set(qn('w:val'), 'right')
+    tab.set(qn('w:leader'), 'dot')
+    tab.set(qn('w:pos'), '9072')
+    tabs.append(tab)
+    pPr.append(tabs)
+
+
+def add_tab_run(paragraph):
+    r = OxmlElement('w:r')
+    r.append(OxmlElement('w:tab'))
+    paragraph._element.append(r)
 
 
 def main():
@@ -104,17 +194,30 @@ def main():
         print("       Fallback: chapters пустые, используем discovery напрямую")
         chapters = collect_chapters(use_graph=False)
 
+    existing_ids = set()
+    for ch in chapters:
+        if ch.get("module_id"):
+            existing_ids.add(ch["module_id"])
+
     toc_heading = doc.add_heading("Оглавление", level=1)
 
     for ch in chapters:
         toc_p = doc.add_paragraph()
-        toc_p.paragraph_format.left_indent = Cm(ch.get("depth", 0) * 0.75)
-        r = toc_p.add_run(ch["heading"])
-        if ch.get("depth", 0) == 0:
-            r.bold = True
-            r.font.size = Pt(12)
-        else:
-            r.font.size = Pt(11)
+        depth = ch.get("depth", 0)
+        toc_p.paragraph_format.left_indent = Cm(depth * 0.75)
+
+        mid = ch.get("module_id") or derive_module_id(ch["heading"], existing_ids)
+        existing_ids.add(mid)
+        ch["module_id"] = mid
+
+        bookmark_name = f"GRACE_{mid}"
+        font_size = 12 if depth == 0 else 11
+        is_bold = depth == 0
+
+        add_toc_tab_stop(toc_p)
+        add_toc_hyperlink(toc_p, bookmark_name, ch["heading"], font_size, bold=is_bold)
+        add_tab_run(toc_p)
+        add_pageref_field(toc_p, bookmark_name, font_size)
 
     doc.add_page_break()
     # END_BLOCK_TOC

@@ -16,10 +16,14 @@
 #   render_list - рендеринг списка с вложенностью
 # END_MODULE_MAP
 
+import logging
+
 from bs4 import BeautifulSoup, NavigableString
 
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.table import WD_TABLE_ALIGNMENT
+
+logger = logging.getLogger(__name__)
 
 
 # START_BLOCK_RENDER_HTML
@@ -27,6 +31,7 @@ def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0):
     """Рендерить HTML-контент в параграфы docx."""
     if _recursion_depth > 5:
         return
+    logger.debug("[Renderer][render_html_to_doc][BLOCK_RENDER_HTML] depth_offset=%d recursion=%d len=%d", depth_offset, _recursion_depth, len(html_content))
     soup = BeautifulSoup(html_content, "html.parser")
 
     for element in soup.children:
@@ -150,12 +155,14 @@ def render_table(doc, element):
     """Рендерить HTML таблицу."""
     rows = element.find_all("tr")
     if not rows:
+        logger.debug("[Renderer][render_table][BLOCK_RENDER_TABLE] skipped=no_rows")
         return
 
     first_row = rows[0]
     cols = first_row.find_all(["td", "th"])
     num_cols = len(cols)
     if num_cols == 0:
+        logger.debug("[Renderer][render_table][BLOCK_RENDER_TABLE] skipped=no_cols")
         return
 
     table = doc.add_table(rows=min(len(rows), 100), cols=num_cols)
@@ -178,5 +185,6 @@ def render_table(doc, element):
                         for run in p.runs:
                             run.font.size = Pt(10)
 
+    logger.info("[Renderer][render_table][BLOCK_RENDER_TABLE] rows=%d cols=%d", len(rows), num_cols)
     doc.add_paragraph()
 # END_BLOCK_RENDER_TABLE

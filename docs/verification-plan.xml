@@ -1,0 +1,552 @@
+<VerificationPlan VERSION="0.4.0">
+  <GlobalPolicy>
+    <log-format>[{module_name}][{func_name}][BLOCK_NAME] message</log-format>
+    <deterministic-first>true</deterministic-first>
+    <module-level-focus>Быстрые детерминистические проверки: парсинг, генерация ID, XML-валидация, рендеринг HTML → docx, GRACE XML генерация, sidebar ordering. Каждый тест проверяет outcome + trajectory (log markers, block markers).</module-level-focus>
+    <wave-level-focus>Интеграция группы модулей: M-SIDEBAR → M-DISCOVERY → M-GRAPHSYNC → M-DOCXBUILDER → M-GRACE. Проверка merged surfaces — закладки, Content_Types, rels, grace-graph.xml содержимое, порядок совпадает с Docusaurus sidebar.</wave-level-focus>
+    <phase-level-focus>Полная регрессия: Markdown → .docx → GRACE-инъекция → валидация. Все VF-xxx flows проходят. Модули, закладки, 5 XML-частей. Порядок глав идентичен yellow-hammer.github.io/dev-rules sidebar.</phase-level-focus>
+    <autonomy-gate>Каждый модуль должен иметь: (1) test file, (2) module-checks commands, (3) success + failure scenarios, (4) required log markers, (5) wave/phase follow-up перед автономным выполнением.</autonomy-gate>
+    <redaction>Не логировать полное содержимое document.xml — только метаданные и счётчики. Не логировать секреты.</redaction>
+    <evidence-hierarchy>deterministic-assertion > trace-assertion > integration-smoke > semantic-evaluation</evidence-hierarchy>
+    <failure-triage>При провале верификации: contract-ref, expected-evidence, observed-evidence, first-divergent-block, next-action. Формат из operational-packets.xml FailurePacketTemplate.</failure-triage>
+  </GlobalPolicy>
+
+  <VerificationMatrix>
+    <matrix-note>Derived from MODULE_CONTRACT + DataFlow DF-001..DF-005. Evidence type per scenario: D=deterministic, T=trace, I=integration.</matrix-note>
+    <MatrixRow module="M-TYPES" scenario="chapter-info-construction" type="D" contract="ChapterInfo dataclass constructs correctly" />
+    <MatrixRow module="M-TYPES" scenario="module-info-construction" type="D" contract="ModuleInfo dataclass constructs correctly" />
+    <MatrixRow module="M-TYPES" scenario="frozen-immutability" type="D" contract="Frozen dataclass raises on mutation" />
+    <MatrixRow module="M-CONFIG" scenario="known-heading" type="D" contract="derive_module_id returns predefined ID" />
+    <MatrixRow module="M-CONFIG" scenario="unknown-heading" type="D" contract="derive_module_id returns deterministic latin ID" />
+    <MatrixRow module="M-CONFIG" scenario="duplicate-id" type="D" contract="derive_module_id appends counter suffix" />
+    <MatrixRow module="M-CONFIG" scenario="classify-prose" type="D" contract="classify_module_type returns NARRATIVE for prose" />
+    <MatrixRow module="M-CONFIG" scenario="classify-table" type="D" contract="classify_module_type returns DATA for tables" />
+    <MatrixRow module="M-CONFIG" scenario="classify-mixed" type="D" contract="classify_module_type returns MIXED" />
+    <MatrixRow module="M-CONFIG" scenario="setup-styles" type="D" contract="setup_styles creates Code style and configures headings" />
+    <MatrixRow module="M-PARSER" scenario="frontmatter-strip" type="D" contract="strip_frontmatter removes YAML block" />
+    <MatrixRow module="M-PARSER" scenario="frontmatter-title" type="D" contract="get_frontmatter_title extracts title" />
+    <MatrixRow module="M-PARSER" scenario="read-md-existing" type="D" contract="read_md returns (title, text) for existing file" />
+    <MatrixRow module="M-PARSER" scenario="read-md-missing" type="D" contract="read_md returns (None, None) for missing file" />
+    <MatrixRow module="M-PARSER" scenario="md-to-html-table" type="D" contract="md_to_html produces table HTML" />
+    <MatrixRow module="M-PARSER" scenario="md-to-html-code" type="D" contract="md_to_html produces code HTML" />
+    <MatrixRow module="M-DISCOVERY" scenario="scan-finds-files" type="D" contract="scan_docs_directory discovers .md files" />
+    <MatrixRow module="M-DISCOVERY" scenario="category-json" type="D" contract="read_category_json extracts label and position" />
+    <MatrixRow module="M-DISCOVERY" scenario="flatten-nested" type="D" contract="flatten_chapters produces correct parent/child order" />
+    <MatrixRow module="M-DISCOVERY" scenario="skip-dirs" type="D" contract="_file, _img, .dotdirs excluded" />
+    <MatrixRow module="M-DISCOVERY" scenario="fm-position" type="D" contract="read_md_frontmatter_position extracts sidebar_position" />
+    <MatrixRow module="M-SIDEBAR" scenario="build-order-basic" type="D" contract="build_chapter_order returns ordered list from docs/" />
+    <MatrixRow module="M-SIDEBAR" scenario="position-respected" type="D" contract="Chapters sorted by sidebar_position within directory" />
+    <MatrixRow module="M-SIDEBAR" scenario="missing-position" type="D" contract="Missing sidebar_position defaults to 999" />
+    <MatrixRow module="M-SIDEBAR" scenario="nested-categories" type="D" contract="Category dirs produce parent/child hierarchy" />
+    <MatrixRow module="M-SIDEBAR" scenario="empty-docs" type="D" contract="Empty docs/ returns empty list" />
+    <MatrixRow module="M-SIDEBAR" scenario="matches-docusaurus" type="I" contract="Order matches sidebars.js autogenerated output" />
+    <MatrixRow module="M-GRAPHSYNC" scenario="read-graph-modules" type="D" contract="read_graph_modules parses M-xxx tags" />
+    <MatrixRow module="M-GRAPHSYNC" scenario="chapters-from-graph" type="D" contract="chapters_from_graph returns flat list from DocChapters" />
+    <MatrixRow module="M-GRAPHSYNC" scenario="sync-roundtrip" type="T" contract="sync_graph_from_fs writes and chapters_from_graph reads back same count" />
+    <MatrixRow module="M-GRAPHSYNC" scenario="build-grace-graph" type="D" contract="build_grace_graph_xml produces valid XML" />
+    <MatrixRow module="M-RENDERER" scenario="render-table" type="D" contract="HTML table renders with correct rows and cols" />
+    <MatrixRow module="M-RENDERER" scenario="render-code" type="D" contract="Code block renders monospace" />
+    <MatrixRow module="M-RENDERER" scenario="render-paragraph" type="D" contract="Inline styles (bold, italic, code, links) preserved" />
+    <MatrixRow module="M-RENDERER" scenario="render-list" type="D" contract="Ordered and unordered lists with nesting" />
+    <MatrixRow module="M-RENDERER" scenario="render-empty-table" type="D" contract="Empty table does not crash" />
+    <MatrixRow module="M-RENDERER" scenario="render-blockquote" type="D" contract="Blockquote renders indented italic" />
+    <MatrixRow module="M-RENDERER" scenario="render-recursion-limit" type="D" contract="Nested divs stop at depth 5" />
+    <MatrixRow module="M-GRACE" scenario="manifest-valid-xml" type="D" contract="make_grace_manifest produces well-formed XML" />
+    <MatrixRow module="M-GRACE" scenario="instructions-valid-xml" type="D" contract="make_grace_instructions produces well-formed XML" />
+    <MatrixRow module="M-GRACE" scenario="contracts-valid-xml" type="D" contract="make_grace_contracts produces well-formed XML" />
+    <MatrixRow module="M-GRACE" scenario="verification-valid-xml" type="D" contract="make_grace_verification produces well-formed XML" />
+    <MatrixRow module="M-GRACE" scenario="inject-parts" type="I" contract="inject_grace_parts creates valid .docx with 5 XML parts" />
+    <MatrixRow module="M-GRACE" scenario="inject-bookmarks" type="D" contract="Bookmark start/end injected correctly" />
+    <MatrixRow module="M-GRACE" scenario="content-types" type="T" contract="Content_Types.xml has 5 Overrides for grace-*.xml" />
+    <MatrixRow module="M-GRACE" scenario="rels" type="T" contract="document.xml.rels has rIdGrace1..5" />
+    <MatrixRow module="M-VALIDATOR" scenario="valid-docx" type="I" contract="Valid GRACE .docx passes all checks" />
+    <MatrixRow module="M-VALIDATOR" scenario="missing-part" type="D" contract="Missing grace part detected" />
+    <MatrixRow module="M-VALIDATOR" scenario="bookmark-imbalance" type="D" contract="Unbalanced bookmarks detected" />
+    <MatrixRow module="M-VALIDATOR" scenario="missing-file" type="D" contract="Non-existent file returns valid=False" />
+    <MatrixRow module="M-DOCXBUILDER" scenario="full-generation" type="I" contract="Full DF-001: Markdown → GRACE .docx → validation passes" />
+    <MatrixRow module="M-DOCXBUILDER" scenario="bookmark-count" type="I" contract="Generated .docx has matching bookmark starts and ends" />
+    <MatrixRow module="M-DOCXBUILDER" scenario="all-parts-present" type="I" contract="All 5 grace-*.xml present in output" />
+    <MatrixRow module="M-DOCXBUILDER" scenario="sidebar-order" type="I" contract="Chapter order in .docx matches Docusaurus sidebar" />
+  </VerificationMatrix>
+
+  <CriticalFlows>
+    <VF-001 NAME="FullGenerationHappyPath" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>Полная генерация .docx из всех Markdown-файлов docs/ через Docusaurus-first ordering</scenario>
+      <expected-outcome>GRACE_Стандарты_разработки.docx создан; 5 XML-частей валидны; закладки парные; документ открывается в Word; порядок глав совпадает с sidebar сайта</expected-outcome>
+      <required-signals>
+        <log-marker>[DocxBuilder][main][BUILD_COMPLETE]</log-marker>
+        <log-marker>[SidebarOrder][build_chapter_order][BUILD_SIDEBAR_ORDER]</log-marker>
+        <trace-sequence>BUILD_SIDEBAR_ORDER -> SYNC_GRAPH -> BUILD_COVER -> BUILD_TOC -> BUILD_CHAPTERS -> GRACE_INJECT -> VALIDATE</trace-sequence>
+      </required-signals>
+      <evidence-type>integration</evidence-type>
+    </VF-001>
+
+    <VF-002 NAME="AgentEditBookmark" USE_CASES="UC-002" DATA_FLOW="DF-002" PRIORITY="high">
+      <scenario>Агент находит и редактирует раздел по GRACE-закладке</scenario>
+      <expected-outcome>Изменён только целевой раздел; закладки парные; grace-graph.xml обновлён</expected-outcome>
+      <required-signals>
+        <log-marker>[Validator][validate_grace_docx][BLOCK_VALIDATE_BOOKMARKS]</log-marker>
+        <trace-sequence>BLOCK_READ_MANIFEST -> BLOCK_READ_GRAPH -> BLOCK_EDIT -> BLOCK_VALIDATE_BOOKMARKS</trace-sequence>
+      </required-signals>
+      <evidence-type>integration</evidence-type>
+    </VF-002>
+
+    <VF-003 NAME="ModuleIdUniqueness" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>Все Module ID уникальны и не содержат кириллицу</scenario>
+      <expected-outcome>Нулевые коллизии ID; все ID соответствуют паттерну M-[A-Z0-9-]+</expected-outcome>
+      <required-signals>
+        <log-marker>[Config][derive_module_id][BLOCK_DERIVE_ID]</log-marker>
+      </required-signals>
+      <evidence-type>deterministic</evidence-type>
+    </VF-003>
+
+    <VF-004 NAME="GraceXmlValidity" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>Все 5 GRACE XML-частей well-formed и парсятся lxml</scenario>
+      <expected-outcome>Нулевые ошибки парсинга; все теги закрыты корректно</expected-outcome>
+      <required-signals>
+        <log-marker>[Validator][validate_grace_docx][BLOCK_VALIDATE_XML]</log-marker>
+      </required-signals>
+      <evidence-type>deterministic</evidence-type>
+    </VF-004>
+
+    <VF-005 NAME="GraphSyncRoundTrip" USE_CASES="UC-001" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>sync_graph_from_fs → chapters_from_graph возвращает тот же набор глав</scenario>
+      <expected-outcome>Количество глав совпадает; module_id стабильны между запусками</expected-outcome>
+      <required-signals>
+        <log-marker>[GraphSync][sync_graph_from_fs][BLOCK_SYNC_FS_TO_GRAPH]</log-marker>
+      </required-signals>
+      <evidence-type>deterministic</evidence-type>
+    </VF-005>
+
+    <VF-006 NAME="RendererHtmlToDocx" USE_CASES="UC-001 UC-005" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>HTML таблицы, код, списки, параграфы рендерятся в docx корректно</scenario>
+      <expected-outcome>Таблицы с правильным числом строк/столбцов; код моноширинным; списки с вложенностью</expected-outcome>
+      <required-signals>
+        <log-marker>[Renderer][render_table][BLOCK_RENDER_TABLE]</log-marker>
+        <log-marker>[Renderer][render_paragraph][BLOCK_RENDER_PARAGRAPH]</log-marker>
+      </required-signals>
+      <evidence-type>deterministic</evidence-type>
+    </VF-006>
+
+    <VF-007 NAME="SidebarConsistency" USE_CASES="UC-001 UC-003" DATA_FLOW="DF-005" PRIORITY="high">
+      <scenario>Порядок глав из M-SIDEBAR совпадает с Docusaurus sidebar auto-generation</scenario>
+      <expected-outcome>Количество глав совпадает; порядок совпадает с yellow-hammer.github.io/dev-rules навигацией; sidebar_position respected</expected-outcome>
+      <required-signals>
+        <log-marker>[SidebarOrder][build_chapter_order][BUILD_SIDEBAR_ORDER]</log-marker>
+      </required-signals>
+      <evidence-type>deterministic</evidence-type>
+      <stop-condition>Если количество глав отличается от ожидаемого более чем на 5% — HALT и replan.</stop-condition>
+    </VF-007>
+  </CriticalFlows>
+
+  <ModuleVerification>
+    <V-M-TYPES MODULE="M-TYPES" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_types.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_types.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">ChapterInfo dataclass создаётся с корректными полями</scenario-1>
+        <scenario-2 kind="success">ModuleInfo dataclass создаётся с корректными полями</scenario-2>
+        <scenario-3 kind="failure">Frozen dataclass raises FrozenInstanceError на мутацию</scenario-3>
+        <scenario-4 kind="success">GraceModule dataclass сериализуется корректно</scenario-4>
+      </scenarios>
+      <required-log-markers />
+      <required-trace-assertions>
+        <assertion-1>Все fields имеют значения правильных типов</assertion-1>
+      </required-trace-assertions>
+      <wave-follow-up>Проверить, что все модули используют типы из M-TYPES вместо dict</wave-follow-up>
+      <phase-follow-up>Полная регрессия типов</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>true</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-TYPES>
+
+    <V-M-CONFIG MODULE="M-CONFIG" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_config.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_config.py -v</check-1>
+        <check-2>python -c "from src.config import derive_module_id; assert derive_module_id('Test', set()) == 'M-TEST'"</check-2>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Известный заголовок маппится на предопределённый ID</scenario-1>
+        <scenario-2 kind="success">Неизвестный заголовок получает детерминистический латинский ID</scenario-2>
+        <scenario-3 kind="failure">Дублирующийся ID получает суффикс-счётчик</scenario-3>
+        <scenario-4 kind="success">classify_module_type: NARRATIVE для prose-only</scenario-4>
+        <scenario-5 kind="success">classify_module_type: DATA для table-only</scenario-5>
+        <scenario-6 kind="success">classify_module_type: MIXED для table+code+prose</scenario-6>
+        <scenario-7 kind="success">setup_styles создаёт Code style и настраивает Heading 1-4</scenario-7>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Config][derive_module_id][BLOCK_DERIVE_ID]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>ID не содержит кириллических символов</assertion-1>
+        <assertion-2>ID уникален в контексте existing_ids</assertion-2>
+        <assertion-3>Все _MODULE_ID_SPECIAL values — ASCII only</assertion-3>
+      </required-trace-assertions>
+      <wave-follow-up>Проверить, что все ID уникальны при полной генерации</wave-follow-up>
+      <phase-follow-up>Полная регрессия с новым набором глав</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>true</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-CONFIG>
+
+    <V-M-PARSER MODULE="M-PARSER" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_parser.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_parser.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Frontmatter с title извлекается корректно</scenario-1>
+        <scenario-2 kind="success">Markdown без frontmatter парсится с первым H1 как заголовок</scenario-2>
+        <scenario-3 kind="failure">Несуществующий файл возвращает (None, None)</scenario-3>
+        <scenario-4 kind="success">md_to_html: таблицы, код-блоки, heading конвертируются</scenario-4>
+        <scenario-5 kind="success">Quoted title в frontmatter</scenario-5>
+        <scenario-6 kind="success">Empty frontmatter</scenario-6>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Parser][read_md][BLOCK_PARSE_FRONTMATTER]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>HTML содержит корректные таблицы и код-блоки</assertion-1>
+      </required-trace-assertions>
+      <wave-follow-up>Интеграционная проверка с реальными файлами docs/</wave-follow-up>
+      <phase-follow-up>Полная регрессия парсера</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>false</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-PARSER>
+
+    <V-M-DISCOVERY MODULE="M-DISCOVERY" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_discovery.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_discovery.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">scan_docs_directory находит .md файлы в docs/</scenario-1>
+        <scenario-2 kind="success">read_category_json извлекает label и position</scenario-2>
+        <scenario-3 kind="success">flatten_chapters: nested → flat с parent_heading</scenario-3>
+        <scenario-4 kind="success">flatten_chapters: пустой список → пустой результат</scenario-4>
+        <scenario-5 kind="success">_skip_dirs: _file, _img исключены</scenario-5>
+        <scenario-6 kind="success">read_md_frontmatter_position: извлекает sidebar_position и title</scenario-6>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Discovery][scan_docs_directory][BLOCK_SCAN_DOCS]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Скрытые каталоги (начинающиеся с . или _) пропущены</assertion-1>
+        <assertion-2>Позиция из _category_.json используется для сортировки</assertion-2>
+      </required-trace-assertions>
+      <wave-follow-up>Интеграция: scan → flatten → derive_module_id → полное покрытие</wave-follow-up>
+      <phase-follow-up>Регрессия при добавлении/удалении файлов docs/</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>false</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-DISCOVERY>
+
+    <V-M-SIDEBAR MODULE="M-SIDEBAR" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_sidebar_order.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_sidebar_order.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">build_chapter_order возвращает непустой список для docs/</scenario-1>
+        <scenario-2 kind="success">Главы отсортированы по sidebar_position внутри каталога</scenario-2>
+        <scenario-3 kind="success">Отсутствующий sidebar_position даёт default 999</scenario-3>
+        <scenario-4 kind="success">Category dirs создают parent/child иерархию</scenario-4>
+        <scenario-5 kind="success">Пустой docs/ возвращает пустой список</scenario-5>
+        <scenario-6 kind="failure">Несуществующий docs_dir — пустой список или ошибка</scenario-6>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[SidebarOrder][build_chapter_order][BUILD_SIDEBAR_ORDER]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Порядок глав совпадает с Docusaurus autogenerated sidebar</assertion-1>
+        <assertion-2>Контейнерные каталоги (без .md) получают тип NAVIGATION</assertion-2>
+      </required-trace-assertions>
+      <wave-follow-up>Интеграция: sidebar → graph sync → полная генерация</wave-follow-up>
+      <phase-follow-up>Сравнить с реальным сайтом yellow-hammer.github.io/dev-rules</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>true</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-SIDEBAR>
+
+    <V-M-GRAPHSYNC MODULE="M-GRAPHSYNC" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_graph_sync.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_graph_sync.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">read_graph_modules парсит M-xxx теги из knowledge-graph.xml</scenario-1>
+        <scenario-2 kind="success">chapters_from_graph возвращает плоский список из DocChapters</scenario-2>
+        <scenario-3 kind="success">sync_graph_from_fs + chapters_from_graph roundtrip: тот же count</scenario-3>
+        <scenario-4 kind="success">build_grace_graph_xml генерирует well-formed XML</scenario-4>
+        <scenario-5 kind="failure">Повреждённый XML возвращает пустой список</scenario-5>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[GraphSync][sync_graph_from_fs][BLOCK_SYNC_FS_TO_GRAPH]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Количество модулей после sync совпадает с flatten_chapters(nodes)</assertion-1>
+        <assertion-2>build_grace_graph_xml содержит MODULES section для каждого модуля</assertion-2>
+      </required-trace-assertions>
+      <wave-follow-up>Интеграция: graph sync → grace-graph.xml → inject → validate</wave-follow-up>
+      <phase-follow-up>Полная регрессия: graph consistency при изменении docs/</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>true</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-GRAPHSYNC>
+
+    <V-M-RENDERER MODULE="M-RENDERER" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_renderer.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_renderer.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">HTML-таблица рендерится в Word-таблицу с правильным числом строк и столбцов</scenario-1>
+        <scenario-2 kind="success">Код-блок рендерится моноширинным шрифтом</scenario-2>
+        <scenario-3 kind="success">Параграф с inline стилями: bold, italic, code, link</scenario-3>
+        <scenario-4 kind="success">Нумерованный и ненумерованный список с вложенностью</scenario-4>
+        <scenario-5 kind="failure">Пустая таблица не вызывает ошибку</scenario-5>
+        <scenario-6 kind="success">Blockquote рендерится с отступом и курсивом</scenario-6>
+        <scenario-7 kind="success">Заголовки h1-h4 рендерятся с depth_offset</scenario-7>
+        <scenario-8 kind="success">Рекурсия div/section ограничена глубиной 5</scenario-8>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Renderer][render_table][BLOCK_RENDER_TABLE]</marker-1>
+        <marker-2>[Renderer][render_html_to_doc][BLOCK_RENDER_HTML]</marker-2>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Таблица имеет table.rows == expected и table.columns == expected</assertion-1>
+        <assertion-2>Code paragraphs используют style "Code"</assertion-2>
+      </required-trace-assertions>
+      <wave-follow-up>Интеграция с реальными Markdown-файлами из docs/</wave-follow-up>
+      <phase-follow-up>Полная регрессия рендеринга</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>false</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-RENDERER>
+
+    <V-M-GRACE MODULE="M-GRACE" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_grace_injector.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_grace_injector.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">make_grace_manifest генерирует well-formed XML</scenario-1>
+        <scenario-2 kind="success">make_grace_instructions генерирует well-formed XML</scenario-2>
+        <scenario-3 kind="success">make_grace_contracts генерирует well-formed XML с TypeContracts</scenario-3>
+        <scenario-4 kind="success">make_grace_verification генерирует well-formed XML с invariants</scenario-4>
+        <scenario-5 kind="success">inject_grace_parts: создаёт .docx с 5 XML-частями</scenario-5>
+        <scenario-6 kind="success">inject_bookmark_start/end: закладки парные</scenario-6>
+        <scenario-7 kind="success">Content_Types.xml содержит 5 Override для grace-*.xml</scenario-7>
+        <scenario-8 kind="success">document.xml.rels содержит rIdGrace1..5</scenario-8>
+        <scenario-9 kind="failure">Пустой modules_info не вызывает ошибку</scenario-9>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[GraceInjector][inject_grace_parts][BLOCK_INJECT]</marker-1>
+        <marker-2>[GraceInjector][make_grace_manifest][BLOCK_MANIFEST]</marker-2>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>Все XML-части парсятся lxml без ошибок</assertion-1>
+        <assertion-2>Content_Types содержит 5 Override для grace-*.xml</assertion-2>
+        <assertion-3>grace-manifest.xml содержит Protocol section</assertion-3>
+        <assertion-4>grace-verification.xml StructuralInvariants содержит bookmark-balance</assertion-4>
+      </required-trace-assertions>
+      <wave-follow-up>Интеграция: распаковать GRACE .docx и проверить содержимое</wave-follow-up>
+      <phase-follow-up>Полная регрессия GRACE-инъекции</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>false</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-GRACE>
+
+    <V-M-DOCXBUILDER MODULE="M-DOCXBUILDER" PRIORITY="high">
+      <test-files>
+        <file>tests/integration/test_docx_builder.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/integration/test_docx_builder.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Полная генерация создаёт два файла: базовый и GRACE .docx</scenario-1>
+        <scenario-2 kind="success">GRACE .docx содержит парные закладки</scenario-2>
+        <scenario-3 kind="success">Все 5 grace-*.xml присутствуют и well-formed</scenario-3>
+        <scenario-4 kind="success">Количество модулей в grace-graph.xml совпадает с количеством глав</scenario-4>
+        <scenario-5 kind="success">validate_grace_docx возвращает valid=True</scenario-5>
+        <scenario-6 kind="success">Порядок глав в .docx совпадает с Docusaurus sidebar</scenario-6>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[DocxBuilder][main][BUILD_COMPLETE]</marker-1>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>bookmarkStart count == bookmarkEnd count</assertion-1>
+        <assertion-2>Все grace-*.xml well-formed</assertion-2>
+        <assertion-3>rels содержат rIdGrace1..5</assertion-3>
+      </required-trace-assertions>
+      <wave-follow-up>Сквозная проверка с валидатором</wave-follow-up>
+      <phase-follow-up>Полная регрессия</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>true</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-DOCXBUILDER>
+
+    <V-M-VALIDATOR MODULE="M-VALIDATOR" PRIORITY="high">
+      <test-files>
+        <file>tests/unit/test_validator.py</file>
+      </test-files>
+      <module-checks>
+        <check-1>pytest tests/unit/test_validator.py -v</check-1>
+      </module-checks>
+      <scenarios>
+        <scenario-1 kind="success">Валидный GRACE .docx проходит все проверки</scenario-1>
+        <scenario-2 kind="failure">Повреждённый .docx (отсутствует grace-часть) — ошибка с деталями</scenario-2>
+        <scenario-3 kind="failure">Небаланс закладок — ошибка</scenario-3>
+        <scenario-4 kind="failure">Несуществующий файл — valid=False</scenario-4>
+        <scenario-5 kind="success">GRACE_PART_NAMES содержит 5 имён</scenario-5>
+      </scenarios>
+      <required-log-markers>
+        <marker-1>[Validator][validate_grace_docx][BLOCK_VALIDATE_BOOKMARKS]</marker-1>
+        <marker-2>[Validator][validate_grace_docx][BLOCK_VALIDATE_XML]</marker-2>
+        <marker-3>[Validator][validate_grace_docx][BLOCK_VALIDATE_CONTENT_TYPES]</marker-3>
+      </required-log-markers>
+      <required-trace-assertions>
+        <assertion-1>_validate_grace_xml проверяет все 5 grace-*.xml</assertion-1>
+        <assertion-2>_validate_bookmarks проверяет парность bookmarkStart/bookmarkEnd</assertion-2>
+        <assertion-3>_validate_content_types проверяет Content_Types и rels</assertion-3>
+      </required-trace-assertions>
+      <wave-follow-up>Вызов валидатора после каждой генерации</wave-follow-up>
+      <phase-follow-up>Полная регрессия валидатора</phase-follow-up>
+      <autonomy-readiness>
+        <local-commands-exist>true</local-commands-exist>
+        <success-and-failure-covered>true</success-and-failure-covered>
+        <markers-observable>false</markers-observable>
+        <wave-phase-followup>true</wave-phase-followup>
+        <packet-fields-sufficient>true</packet-fields-sufficient>
+        <gap>Нет</gap>
+      </autonomy-readiness>
+    </V-M-VALIDATOR>
+  </ModuleVerification>
+
+  <PhaseGates>
+    <Gate-Phase-1 PHASE="Phase-1">
+      <goal>M-TYPES создан; M-SIDEBAR реализован; все юнит-тесты проходят; Docusaurus-first ordering работает</goal>
+      <commands>
+        <command-1>pytest tests/unit/ -v</command-1>
+      </commands>
+      <required-evidence>
+        <evidence-1>M-TYPES имеет frozen dataclasses: ChapterInfo, ModuleInfo, GraceModule</evidence-1>
+        <evidence-2>M-SIDEBAR build_chapter_order возвращает порядок, совпадающий с Docusaurus sidebar</evidence-2>
+        <evidence-3>pytest завершается без ошибок</evidence-3>
+        <evidence-4>Все V-M-xxx entries имеют test-files и module-checks</evidence-4>
+      </required-evidence>
+    </Gate-Phase-1>
+
+    <Gate-Phase-2 PHASE="Phase-2">
+      <goal>Улучшенный рендеринг, GRACE-инъекция с element inventory, graph sync через M-SIDEBAR</goal>
+      <commands>
+        <command-1>pytest tests/unit/ tests/integration/ -v</command-1>
+      </commands>
+      <required-evidence>
+        <evidence-1>grace-graph.xml содержит ELEMENTS для каждого модуля с таблицами</evidence-1>
+        <evidence-2>Сгенерированный .docx открывается в Word без ошибок</evidence-2>
+        <evidence-3>Все renderer scenarios покрыты тестами</evidence-3>
+        <evidence-4>Все grace_injector scenarios покрыты тестами</evidence-4>
+        <evidence-5>M-GRAPHSYNC использует M-SIDEBAR для порядка</evidence-5>
+      </required-evidence>
+    </Gate-Phase-2>
+
+    <Gate-Phase-3 PHASE="Phase-3">
+      <goal>Сквозная интеграционная проверка: M-DOCXBUILDER через M-SIDEBAR; регрессия</goal>
+      <commands>
+        <command-1>pytest tests/ -v</command-1>
+      </commands>
+      <required-evidence>
+        <evidence-1>DF-001 FullGeneration проходит без ошибок</evidence-1>
+        <evidence-2>Закладки парные, 5 XML-частей — всё валидно</evidence-2>
+        <evidence-3>Все VF-001..VF-007 CriticalFlows пройдены</evidence-3>
+        <evidence-4>validate_grace_docx возвращает valid=True</evidence-4>
+        <evidence-5>Порядок глав в .docx совпадает с Docusaurus sidebar</evidence-5>
+      </required-evidence>
+    </Gate-Phase-3>
+  </PhaseGates>
+
+  <FailurePackets>
+    <packet-template>
+      <expected-fields>scenario, contract-ref, expected-evidence, observed-evidence, first-divergent-block, suggested-next-action</expected-fields>
+      <format-ref>docs/operational-packets.xml FailurePacketTemplate</format-ref>
+    </packet-template>
+  </FailurePackets>
+
+  <AutonomyAssessment>
+    <overall-status>ready</overall-status>
+    <module-local-commands>Все модули имеют pytest commands в module-checks</module-local-commands>
+    <success-failure-coverage>Все V-M-xxx имеют success + failure scenarios</success-failure-coverage>
+    <trace-observability>Все модули имеют structured logging с BLOCK markers: Types (pure data), Config BLOCK_DERIVE_ID, Parser BLOCK_READ_MD/BLOCK_PARSE_FRONTMATTER/BLOCK_MD_TO_HTML, Discovery BLOCK_SCAN_DOCS/BLOCK_READ_CATEGORY/BLOCK_FLATTEN, SidebarOrder BUILD_SIDEBAR_ORDER, GraphSync BLOCK_SYNC_FS_TO_GRAPH, Renderer BLOCK_RENDER_HTML/BLOCK_RENDER_TABLE, GraceInjector BLOCK_INJECT/BLOCK_MANIFEST, Validator BLOCK_VALIDATE_XML/BLOCK_VALIDATE_BOOKMARKS/BLOCK_VALIDATE_CONTENT_TYPES, DocxBuilder BUILD_COMPLETE</trace-observability>
+    <wave-phase-gates>Gate-Phase-1/2/3 определены с commands и required-evidence</wave-phase-gates>
+    <packet-sufficiency>FailurePacket template имеет 5 полей — достаточно для handoff</packet-sufficiency>
+    <blocking-gap>Нет</blocking-gap>
+    <recommended-action>Проект готов к автономному выполнению: M-SIDEBAR + M-TYPES добавлены, все модули покрыты тестами, logging и trace markers на месте.</recommended-action>
+  </AutonomyAssessment>
+</VerificationPlan>

@@ -17,12 +17,15 @@
 # END_MODULE_MAP
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
 from src.config import DOCS_DIR
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -59,6 +62,7 @@ def read_category_json(dir_path):
             data = json.loads(cat_file.read_text(encoding="utf-8"))
             label = data.get("label", dir_path.name)
             position = data.get("position", 999)
+            logger.debug("[Discovery][read_category_json][BLOCK_READ_CATEGORY] dir=%s label='%s' position=%s", dir_path.name, label, position)
             return label, position
         except (json.JSONDecodeError, KeyError):
             pass
@@ -188,6 +192,7 @@ def scan_docs_directory(docs_dir=None):
     Возвращает список ChapterNode, отсортированный по sidebar_position.
     """
     root = Path(docs_dir) if docs_dir else DOCS_DIR
+    logger.info("[Discovery][scan_docs_directory][BLOCK_SCAN_DOCS] root=%s", root)
     return _scan_directory(root, depth=0)
 # END_BLOCK_SCAN_DOCS
 
@@ -209,5 +214,6 @@ def flatten_chapters(nodes, parent_heading=None):
         result.append(entry)
         if node.children:
             result.extend(flatten_chapters(node.children, parent_heading=node.heading))
+    logger.debug("[Discovery][flatten_chapters][BLOCK_FLATTEN] total=%d", len(result))
     return result
 # END_BLOCK_FLATTEN

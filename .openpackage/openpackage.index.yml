@@ -1,0 +1,180 @@
+# This file is managed by OpenPackage. Do not edit manually.
+
+packages:
+  gh@osovv/grace-marketplace/plugins/grace:
+    files:
+      skills/grace/grace-ask/SKILL.md:
+        - hash: 22d94c21dfd1d73b
+          sourceHash: 8d6b387703cdcd11
+          target: .kilocode/skills/grace/grace-ask/SKILL.md
+      skills/grace/grace-ask/agents/openai.yaml:
+        - hash: b5e8f0179799a31e
+          sourceHash: b5e8f0179799a31e
+          target: .kilocode/skills/grace/grace-ask/agents/openai.yaml
+      skills/grace/grace-cli/SKILL.md:
+        - hash: 98b5832fde22988f
+          sourceHash: c521a92cb35c7115
+          target: .kilocode/skills/grace/grace-cli/SKILL.md
+      skills/grace/grace-execute/SKILL.md:
+        - hash: 1ade27ac9e5355f8
+          sourceHash: 86a8126f877f83a2
+          target: .kilocode/skills/grace/grace-execute/SKILL.md
+      skills/grace/grace-execute/agents/openai.yaml:
+        - hash: 97aecea418e040b8
+          sourceHash: 97aecea418e040b8
+          target: .kilocode/skills/grace/grace-execute/agents/openai.yaml
+      skills/grace/grace-explainer/SKILL.md:
+        - hash: edd1c1976b9a15af
+          sourceHash: 0387c6db4151bbdf
+          target: .kilocode/skills/grace/grace-explainer/SKILL.md
+      skills/grace/grace-explainer/agents/openai.yaml:
+        - hash: 875044fe92fd7d10
+          sourceHash: 875044fe92fd7d10
+          target: .kilocode/skills/grace/grace-explainer/agents/openai.yaml
+        - hash: 845ec2fa02495357
+          sourceHash: 845ec2fa02495357
+          target: .kilocode/skills/grace/grace-multiagent-execute/agents/openai.yaml
+      skills/grace/grace-explainer/references/contract-driven-dev.md:
+        - hash: 79f58f88e821145d
+          sourceHash: 79f58f88e821145d
+          target: .kilocode/skills/grace/grace-explainer/references/contract-driven-dev.md
+      skills/grace/grace-explainer/references/knowledge-graph.md:
+        - hash: 8796b92671336160
+          sourceHash: 8796b92671336160
+          target: .kilocode/skills/grace/grace-explainer/references/knowledge-graph.md
+      skills/grace/grace-explainer/references/semantic-markup.md:
+        - hash: f2fffdd6f2ccca97
+          sourceHash: f2fffdd6f2ccca97
+          target: .kilocode/skills/grace/grace-explainer/references/semantic-markup.md
+      skills/grace/grace-explainer/references/unique-tag-convention.md:
+        - hash: 6fe74988173a13ad
+          sourceHash: 6fe74988173a13ad
+          target: .kilocode/skills/grace/grace-explainer/references/unique-tag-convention.md
+      skills/grace/grace-explainer/references/verification-driven-dev.md:
+        - hash: 41c973d1d7ad8c5a
+          sourceHash: 41c973d1d7ad8c5a
+          target: .kilocode/skills/grace/grace-explainer/references/verification-driven-dev.md
+      skills/grace/grace-fix/SKILL.md:
+        - hash: 1b4424a553d03a79
+          sourceHash: 62d2bf7592eb8b5d
+          target: .kilocode/skills/grace/grace-fix/SKILL.md
+      skills/grace/grace-fix/agents/openai.yaml:
+        - hash: ad968c367b6bb69a
+          sourceHash: ad968c367b6bb69a
+          target: .kilocode/skills/grace/grace-fix/agents/openai.yaml
+        - hash: 76b33ea5fcc442b6
+          sourceHash: 76b33ea5fcc442b6
+          target: .kilocode/skills/grace/grace-reviewer/agents/openai.yaml
+      skills/grace/grace-init/SKILL.md:
+        - hash: f97bc014d506c3bb
+          sourceHash: 9bb4015b09af12a5
+          target: .kilocode/skills/grace/grace-init/SKILL.md
+      skills/grace/grace-init/agents/openai.yaml:
+        - hash: b4a5a165323d0d37
+          sourceHash: b4a5a165323d0d37
+          target: .kilocode/skills/grace/grace-init/agents/openai.yaml
+      skills/grace/grace-init/assets/AGENTS.md.template:
+        - hash: 54b9a4a0514cfa57
+          sourceHash: 54b9a4a0514cfa57
+          target: .kilocode/skills/grace/grace-init/assets/AGENTS.md.template
+      skills/grace/grace-init/assets/docs/development-plan.xml.template:
+        - hash: e65313500885c0c3
+          sourceHash: e65313500885c0c3
+          target: .kilocode/skills/grace/grace-init/assets/docs/development-plan.xml.template
+      skills/grace/grace-init/assets/docs/knowledge-graph.xml.template:
+        - hash: 86258f17434fd47a
+          sourceHash: 86258f17434fd47a
+          target: .kilocode/skills/grace/grace-init/assets/docs/knowledge-graph.xml.template
+      skills/grace/grace-init/assets/docs/operational-packets.xml.template:
+        - hash: 243064f842ec0536
+          sourceHash: 243064f842ec0536
+          target: .kilocode/skills/grace/grace-init/assets/docs/operational-packets.xml.template
+      skills/grace/grace-init/assets/docs/requirements.xml.template:
+        - hash: c34eb226c08c2ab8
+          sourceHash: c34eb226c08c2ab8
+          target: .kilocode/skills/grace/grace-init/assets/docs/requirements.xml.template
+      skills/grace/grace-init/assets/docs/technology.xml.template:
+        - hash: 7a2b445abffb5ec8
+          sourceHash: 7a2b445abffb5ec8
+          target: .kilocode/skills/grace/grace-init/assets/docs/technology.xml.template
+      skills/grace/grace-init/assets/docs/verification-plan.xml.template:
+        - hash: 6b1715bafd3a0575
+          sourceHash: 6b1715bafd3a0575
+          target: .kilocode/skills/grace/grace-init/assets/docs/verification-plan.xml.template
+      skills/grace/grace-multiagent-execute/SKILL.md:
+        - hash: ab5b9b5248aa9759
+          sourceHash: 3b73765993d0343c
+          target: .kilocode/skills/grace/grace-multiagent-execute/SKILL.md
+      skills/grace/grace-plan/SKILL.md:
+        - hash: 75b3033265330aa5
+          sourceHash: 13b252fa7305afda
+          target: .kilocode/skills/grace/grace-plan/SKILL.md
+      skills/grace/grace-plan/agents/openai.yaml:
+        - hash: 152e98c4b9f6e7f8
+          sourceHash: 152e98c4b9f6e7f8
+          target: .kilocode/skills/grace/grace-plan/agents/openai.yaml
+      skills/grace/grace-refactor/SKILL.md:
+        - hash: 7b7354615b3a480c
+          sourceHash: 13a79506e1232576
+          target: .kilocode/skills/grace/grace-refactor/SKILL.md
+      skills/grace/grace-refactor/agents/openai.yaml:
+        - hash: 9fb705ea6cab7b57
+          sourceHash: 9fb705ea6cab7b57
+          target: .kilocode/skills/grace/grace-refactor/agents/openai.yaml
+      skills/grace/grace-refresh/SKILL.md:
+        - hash: 5457a0342378cfac
+          sourceHash: a58a522239db8354
+          target: .kilocode/skills/grace/grace-refresh/SKILL.md
+      skills/grace/grace-refresh/agents/openai.yaml:
+        - hash: a8c39f2ebd81c9de
+          sourceHash: a8c39f2ebd81c9de
+          target: .kilocode/skills/grace/grace-refresh/agents/openai.yaml
+      skills/grace/grace-reviewer/SKILL.md:
+        - hash: 5b5a8ab4768a5f0d
+          sourceHash: 1d10f5b6e0fa1a41
+          target: .kilocode/skills/grace/grace-reviewer/SKILL.md
+      skills/grace/grace-setup-subagents/SKILL.md:
+        - hash: d21141f6966fe41c
+          sourceHash: 4c830957ae6451fa
+          target: .kilocode/skills/grace/grace-setup-subagents/SKILL.md
+      skills/grace/grace-setup-subagents/agents/openai.yaml:
+        - hash: 8dec2ae9c5471002
+          sourceHash: 8dec2ae9c5471002
+          target: .kilocode/skills/grace/grace-setup-subagents/agents/openai.yaml
+      skills/grace/grace-setup-subagents/references/roles/contract-reviewer.md:
+        - hash: e8fab0259ac4d816
+          sourceHash: e8fab0259ac4d816
+          target: .kilocode/skills/grace/grace-setup-subagents/references/roles/contract-reviewer.md
+      skills/grace/grace-setup-subagents/references/roles/fixer.md:
+        - hash: 3b551e584199c82e
+          sourceHash: 3b551e584199c82e
+          target: .kilocode/skills/grace/grace-setup-subagents/references/roles/fixer.md
+      skills/grace/grace-setup-subagents/references/roles/module-implementer.md:
+        - hash: b9d1bba3d8e93b14
+          sourceHash: b9d1bba3d8e93b14
+          target: .kilocode/skills/grace/grace-setup-subagents/references/roles/module-implementer.md
+      skills/grace/grace-setup-subagents/references/roles/verification-reviewer.md:
+        - hash: 85409d5c4d1d3a43
+          sourceHash: 85409d5c4d1d3a43
+          target: .kilocode/skills/grace/grace-setup-subagents/references/roles/verification-reviewer.md
+      skills/grace/grace-status/SKILL.md:
+        - hash: 7d06a9f5546155a7
+          sourceHash: b20358f189a16b5c
+          target: .kilocode/skills/grace/grace-status/SKILL.md
+      skills/grace/grace-status/agents/openai.yaml:
+        - hash: 1ef8163170120f87
+          sourceHash: 1ef8163170120f87
+          target: .kilocode/skills/grace/grace-status/agents/openai.yaml
+      skills/grace/grace-verification/SKILL.md:
+        - hash: 179af1e9a8cb6a97
+          sourceHash: 74e49bf749d21ca1
+          target: .kilocode/skills/grace/grace-verification/SKILL.md
+      skills/grace/grace-verification/agents/openai.yaml:
+        - hash: 3cb6e0e0eb25229f
+          sourceHash: 3cb6e0e0eb25229f
+          target: .kilocode/skills/grace/grace-verification/agents/openai.yaml
+    installScope: full
+    path: ~/.openpackage/cache/git/4df16876342c/9c47745/plugins/grace
+    platforms:
+      - kilo
+    version: 3.10.0

@@ -1,0 +1,71 @@
+<TechnologyStack VERSION="0.3.0">
+  <Runtime>Python 3.14</Runtime>
+  <Language>Python 3.14</Language>
+  <Framework>python-docx 1.2.0</Framework>
+  <ContentSource>Docusaurus 3 — Markdown файлы в docs/ с sidebar_position front matter и _category_.json для определения порядка глав</ContentSource>
+
+  <Dependencies>
+    <dep name="python-docx" version="1.2.0" purpose="Создание и редактирование Word .docx файлов программно" />
+    <dep name="lxml" version="6.1.0" purpose="Парсинг и генерация XML для GRACE-частей и манипуляции document.xml" />
+    <dep name="markdown" version="3.10.2" purpose="Конвертация Markdown → HTML для промежуточного рендеринга" />
+    <dep name="beautifulsoup4" version="4.14.3" purpose="Парсинг HTML для извлечения элементов перед вставкой в docx" />
+  </Dependencies>
+
+  <VersionConstraints>
+    <constraint lib="python-docx" min="1.1.0" max="1.x" reason="Нужен стабильный API OxmlElement и bookmark-поддержка" />
+    <constraint lib="lxml" min="5.0.0" max="6.x" reason="XML-манипуляции для GRACE-частей и валидации" />
+  </VersionConstraints>
+
+  <Tooling>
+    <tool name="environment" value="venv" />
+    <tool name="package-manager" value="pip" />
+    <tool name="linter" value="ruff" />
+    <tool name="formatter" value="ruff format" />
+    <tool name="test-runner" value="pytest" version="8.x" />
+    <tool name="type-checker" value="mypy" />
+  </Tooling>
+
+  <PreferredAgentStack>
+    <preferred-runtime-library>python-docx</preferred-runtime-library>
+    <preferred-xml-library>lxml</preferred-xml-library>
+    <preferred-markdown-library>markdown + beautifulsoup4</preferred-markdown-library>
+    <preferred-test-library>pytest</preferred-test-library>
+    <preferred-observability-library>logging (stdlib)</preferred-observability-library>
+    <discouraged-surface reason="python-docx не поддерживает прямой манипуляции zip без распаковки.">Прямая запись в zip-архив без распаковки/пересборки</discouraged-surface>
+    <discouraged-surface reason="Порядок глав определяется автоматически через sidebar_position и _category_.json.">Hardcoded OrderedDict CHAPTERS или ручное задание порядка глав</discouraged-surface>
+  </PreferredAgentStack>
+
+  <Testing>
+    <module-level>
+      <command>pytest tests/unit/ -v</command>
+      <focus>Быстрые детерминистические проверки парсинга Markdown, генерации XML, маппинга модулей</focus>
+    </module-level>
+    <wave-level>
+      <command>pytest tests/integration/ -v</command>
+      <focus>Проверка полного цикла: Markdown → docx → GRACE-инъекция → валидация</focus>
+    </wave-level>
+    <phase-level>
+      <command>pytest tests/ -v</command>
+      <focus>Полная регрессия включая проверки целостности выходного документа</focus>
+    </phase-level>
+    <mocking-policy>Использовать временные файлы (tmp_path) для тестов генерации. Не мокать python-docx — тестировать реальный вывод.</mocking-policy>
+  </Testing>
+
+  <Observability>
+    <logger>logging (stdlib)</logger>
+    <log-format>[{module_name}][{func_name}][BLOCK_NAME] message</log-format>
+    <required-fields>correlation_id, module_id, bookmark_id</required-fields>
+    <redaction>Не логировать полное содержимое document.xml — только метаданные и счётчики.</redaction>
+  </Observability>
+
+  <AutonomyPolicy>
+    <default-execution-profile>balanced</default-execution-profile>
+    <max-fix-attempts-per-step>2</max-fix-attempts-per-step>
+    <replan-trigger>Новая зависимость, конфликт контрактов, несовместимый API python-docx.</replan-trigger>
+    <checkpoint-requirement>Каждый шаг оставляет: assumptions, commands, evidence, next action.</checkpoint-requirement>
+  </AutonomyPolicy>
+
+  <DeliveryShape>
+    <shape>Python-модули src/*.py + виртуальное окружение. Порядок глав определяется Docusaurus sidebar auto-generation (sidebar_position + _category_.json). Выходной артефакт — .docx файл. Без серверной части.</shape>
+  </DeliveryShape>
+</TechnologyStack>

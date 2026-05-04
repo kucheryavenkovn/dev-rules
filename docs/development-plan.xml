@@ -1,16 +1,51 @@
-<DevelopmentPlan VERSION="0.2.0">
+<DevelopmentPlan VERSION="0.3.0">
   <ArchitectureNotes>
-    <objective>Надёжная генерация структурированного Word-документа с GRACE-разметкой из Markdown-источников. Приоритет — корректность XML-структуры и парность закладок.</objective>
+    <objective>Надёжная генерация структурированного Word-документа с GRACE-разметкой из Markdown-источников Docusaurus-сайта. Порядок глав определяется автоматически через sidebar_position front matter и _category_.json — тот же механизм, что использует Docusaurus для построения навигации на сайте yellow-hammer.github.io/dev-rules.</objective>
     <non-goal>Полная fidelity-конвертация всех элементов Markdown (Mermaid, SVG, сложные таблицы) в v1.</non-goal>
+    <arch-decision-1>OrderedDict CHAPTERS заменён на Docusaurus-first ordering через M-SIDEBAR + M-DISCOVERY. Единственный источник истины — файловая система docs/ с _category_.json и front matter sidebar_position.</arch-decision-1>
+    <arch-decision-2>M-TYPES выделен как общий модуль dataclass-типов (ChapterInfo, ModuleInfo, GraceModule), устраняющий хрупкие dict-контракты между модулями.</arch-decision-2>
+    <arch-decision-3>M-STRUCTURE (OrderedDict-based) удалён. Его функции поглощены M-SIDEBAR (порядок), M-DISCOVERY (сканирование) и M-GRAPHSYNC (graph-first fallback).</arch-decision-3>
     <risk-1>Mermaid-диаграммы из Markdown не конвертируются — теряются при рендеринге.</risk-1>
     <risk-2>Изображения с относительными путями не встраиваются в .docx.</risk-2>
     <risk-3>Ручное редактирование в Word может сломать GRACE-закладки.</risk-3>
   </ArchitectureNotes>
 
   <Modules>
-    <M-CONFIG NAME="Config" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="planned">
+    <M-TYPES NAME="Types" TYPE="UTILITY" LAYER="0" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Общие dataclass-типы данных для всех модулей: ChapterInfo, ModuleInfo, GraceModule</purpose>
+        <scope>Только определения типов и их сериализация. Без бизнес-логики.</scope>
+        <inputs>
+          <param name="constructor fields" type="str, int, float, list, Optional" />
+        </inputs>
+        <outputs>
+          <param name="frozen dataclass instances" type="ChapterInfo | ModuleInfo | GraceModule" />
+        </outputs>
+        <errors>none — immutable dataclasses</errors>
+      </contract>
+      <interface>
+        <export-ChapterInfo PURPOSE="Структура главы: heading, source, depth, position, parent_heading, is_container, rel_path" />
+        <export-ModuleInfo PURPOSE="Структура модуля: id, heading, type, para_start, para_end, elements, parent" />
+        <export-GraceModule PURPOSE="Структура grace-модуля для XML-инъекции" />
+      </interface>
+      <depends>none</depends>
+      <target>
+        <source>src/types.py</source>
+        <tests>tests/unit/test_types.py</tests>
+      </target>
+      <observability>
+        <log-prefix>n/a — pure data</log-prefix>
+      </observability>
+      <verification-ref>V-M-TYPES</verification-ref>
+      <notes>
+        <note-1>Frozen dataclasses обеспечивают иммутабельность и детерминистическое сравнение.</note-1>
+      </notes>
+    </M-TYPES>
+
+    <M-CONFIG NAME="Config" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="planned">
       <contract>
         <purpose>Конфигурация генератора: пути, версия, стили, маппинг заголовков → Module ID</purpose>
+        <scope>Константы путей, маппинг Module ID, стили Word, классификация модулей</scope>
         <inputs>
           <param name="DOCS_DIR" type="Path" />
           <param name="OUTPUT_PATH" type="Path" />
@@ -30,9 +65,9 @@
         <export-derive_module_id PURPOSE="Генерация Module ID из заголовка" />
         <export-classify_module_type PURPOSE="Классификация типа модуля" />
       </interface>
-      <depends>none</depends>
+      <depends>M-TYPES</depends>
       <target>
-        <source>generate-grace-docx.py (секции CONFIGURATION + MODULE_ID)</source>
+        <source>src/config.py</source>
         <tests>tests/unit/test_config.py</tests>
       </target>
       <observability>
@@ -45,9 +80,10 @@
       </notes>
     </M-CONFIG>
 
-    <M-PARSER NAME="MarkdownParser" TYPE="UTILITY" LAYER="0" ORDER="2" STATUS="planned">
+    <M-PARSER NAME="MarkdownParser" TYPE="UTILITY" LAYER="0" ORDER="3" STATUS="planned">
       <contract>
         <purpose>Чтение .md файлов и конвертация в HTML через markdown-библиотеку</purpose>
+        <scope>read_md, strip_frontmatter, get_frontmatter_title, md_to_html</scope>
         <inputs>
           <param name="rel_path" type="str" />
         </inputs>
@@ -65,7 +101,7 @@
       </interface>
       <depends>M-CONFIG</depends>
       <target>
-        <source>generate-grace-docx.py (секция PARSING)</source>
+        <source>src/parser.py</source>
         <tests>tests/unit/test_parser.py</tests>
       </target>
       <observability>
@@ -78,40 +114,117 @@
       </notes>
     </M-PARSER>
 
-    <M-STRUCTURE NAME="ChapterStructure" TYPE="CORE_LOGIC" LAYER="0" ORDER="3" STATUS="planned">
+    <M-DISCOVERY NAME="DocDiscovery" TYPE="CORE_LOGIC" LAYER="0" ORDER="4" STATUS="planned">
       <contract>
-        <purpose>Иерархия глав репозитория в OrderedDict с маппингом на файлы</purpose>
+        <purpose>Динамическое обнаружение структуры документации из файловой системы Docusaurus</purpose>
+        <scope>scan_docs_directory, read_category_json, read_md_frontmatter_position, flatten_chapters</scope>
         <inputs>
-          <param name="chapters_dict" type="OrderedDict" />
+          <param name="docs_dir" type="Path" />
         </inputs>
         <outputs>
-          <param name="flat_chapters" type="list[ChapterInfo]" />
+          <param name="chapter_tree" type="list[ChapterNode]" />
+          <param name="flat_chapters" type="list[dict]" />
         </outputs>
         <errors>
-          <error code="DUPLICATE_HEADING">Одинаковые заголовки глав на одном уровне</error>
+          <error code="SCAN_FAILED">docs_dir не существует или не читается</error>
         </errors>
       </contract>
       <interface>
-        <export-collect_chapters PURPOSE="Рекурсивно собрать плоский список глав" />
+        <export-scan_docs_directory PURPOSE="Сканировать docs/ и построить иерархию ChapterNode" />
+        <export-flatten_chapters PURPOSE="Развернуть дерево в плоский список" />
+        <export-read_category_json PURPOSE="Прочитать _category_.json из каталога" />
+        <export-read_md_frontmatter_position PURPOSE="Извлечь sidebar_position и title из .md" />
       </interface>
-      <depends>M-CONFIG</depends>
+      <depends>M-CONFIG, M-TYPES</depends>
       <target>
-        <source>generate-grace-docx.py (OrderedDict CHAPTERS + collect_chapters)</source>
-        <tests>tests/unit/test_structure.py</tests>
+        <source>src/discovery.py</source>
+        <tests>tests/unit/test_discovery.py</tests>
       </target>
       <observability>
-        <log-prefix>[Structure]</log-prefix>
-        <critical-block>BLOCK_COLLECT_FLAT</critical-block>
+        <log-prefix>[Discovery]</log-prefix>
+        <critical-block>BLOCK_SCAN_DOCS</critical-block>
+        <critical-block>BLOCK_READ_CATEGORY</critical-block>
+        <critical-block>BLOCK_FLATTEN</critical-block>
       </observability>
-      <verification-ref>V-M-STRUCTURE</verification-ref>
+      <verification-ref>V-M-DISCOVERY</verification-ref>
       <notes>
-        <note-1>Порядок глав критичен — влияет на нумерацию закладок и оглавление.</note-1>
+        <note-1>Пропускает каталоги _file, _img и скрытые (.dotdirs).</note-1>
+        <note-2>Сортировка внутри каталога — по sidebar_position, затем alphabetically.</note-2>
       </notes>
-    </M-STRUCTURE>
+    </M-DISCOVERY>
 
-    <M-RENDERER NAME="DocxRenderer" TYPE="CORE_LOGIC" LAYER="1" ORDER="1" STATUS="planned">
+    <M-SIDEBAR NAME="SidebarOrder" TYPE="CORE_LOGIC" LAYER="0" ORDER="5" STATUS="planned">
       <contract>
-        <purpose>Рендеринг HTML в элементы docx: параграфы, таблицы, списки, код</purpose>
+        <purpose>Построение авторитетного порядка глав, идентичного Docusaurus sidebar auto-generation</purpose>
+        <scope>build_chapter_order — главная функция, вызывающая M-DISCOVERY и сортирующая по sidebar_position</scope>
+        <inputs>
+          <param name="docs_dir" type="Path" />
+        </inputs>
+        <outputs>
+          <param name="ordered_chapters" type="list[ChapterInfo]" />
+        </outputs>
+        <errors>
+          <error code="NO_CHAPTERS_FOUND">docs/ пуст или не содержит .md файлов</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-build_chapter_order PURPOSE="Построить упорядоченный список глав, идентичный sidebar Docusaurus" />
+      </interface>
+      <depends>M-CONFIG, M-DISCOVERY, M-TYPES</depends>
+      <target>
+        <source>src/sidebar_order.py</source>
+        <tests>tests/unit/test_sidebar_order.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[SidebarOrder]</log-prefix>
+        <critical-block>BUILD_SIDEBAR_ORDER</critical-block>
+      </observability>
+      <verification-ref>V-M-SIDEBAR</verification-ref>
+      <notes>
+        <note-1>Если sidebar_position отсутствует в front matter — default 999, что помещает главу после позиционированных.</note-1>
+        <note-2>Если _category_.json отсутствует — fallback на имя каталога (alphabetical).</note-2>
+      </notes>
+    </M-SIDEBAR>
+
+    <M-GRAPHSYNC NAME="GraphSync" TYPE="CORE_LOGIC" LAYER="1" ORDER="1" STATUS="planned">
+      <contract>
+        <purpose>Чтение/запись knowledge-graph.xml DocChapters, roundtrip sync с файловой системой</purpose>
+        <scope>read_graph_modules, chapters_from_graph, sync_graph_from_fs, build_grace_graph_xml</scope>
+        <inputs>
+          <param name="discovered_chapters" type="list[ChapterInfo]" />
+        </inputs>
+        <outputs>
+          <param name="graph_chapters" type="list[ChapterInfo]" />
+          <param name="grace_graph_xml" type="str (XML)" />
+        </outputs>
+        <errors>
+          <error code="GRAPH_PARSE_ERROR">knowledge-graph.xml повреждён</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-sync_graph_from_fs PURPOSE="Синхронизировать knowledge-graph.xml с файловой системой" />
+        <export-chapters_from_graph PURPOSE="Прочитать DocChapters из knowledge-graph.xml" />
+        <export-build_grace_graph_xml PURPOSE="Построить grace-graph.xml для инъекции" />
+      </interface>
+      <depends>M-CONFIG, M-DISCOVERY, M-SIDEBAR, M-TYPES</depends>
+      <target>
+        <source>src/graph_sync.py</source>
+        <tests>tests/unit/test_graph_sync.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[GraphSync]</log-prefix>
+        <critical-block>BLOCK_SYNC_FS_TO_GRAPH</critical-block>
+      </observability>
+      <verification-ref>V-M-GRAPHSYNC</verification-ref>
+      <notes>
+        <note-1>Graph-first strategy: при наличии DocChapters в графе — используются; fallback — discovery.</note-1>
+      </notes>
+    </M-GRAPHSYNC>
+
+    <M-RENDERER NAME="DocxRenderer" TYPE="CORE_LOGIC" LAYER="1" ORDER="2" STATUS="planned">
+      <contract>
+        <purpose>Рендеринг HTML в элементы docx: параграфы, таблицы, списки, код, blockquote</purpose>
+        <scope>render_html_to_doc, render_paragraph, render_table, render_list, render_blockquote</scope>
         <inputs>
           <param name="doc" type="Document" />
           <param name="html_content" type="str" />
@@ -122,6 +235,7 @@
         </outputs>
         <errors>
           <error code="TABLE_PARSE_ERROR">Некорректная HTML-таблица</error>
+          <error code="RENDER_DEPTH_EXCEEDED">Рекурсия div/section превысила лимит 5</error>
         </errors>
       </contract>
       <interface>
@@ -130,14 +244,15 @@
         <export-render_table PURPOSE="Рендеринг таблицы" />
         <export-render_list PURPOSE="Рендеринг списка с вложенностью" />
       </interface>
-      <depends>M-PARSER, M-CONFIG</depends>
+      <depends>M-CONFIG, M-TYPES</depends>
       <target>
-        <source>generate-grace-docx.py (секция RENDERING)</source>
+        <source>src/renderer.py</source>
         <tests>tests/unit/test_renderer.py</tests>
       </target>
       <observability>
         <log-prefix>[Renderer]</log-prefix>
         <critical-block>BLOCK_RENDER_TABLE</critical-block>
+        <critical-block>BLOCK_RENDER_HTML</critical-block>
       </observability>
       <verification-ref>V-M-RENDERER</verification-ref>
       <notes>
@@ -145,12 +260,13 @@
       </notes>
     </M-RENDERER>
 
-    <M-GRACE NAME="GraceInjector" TYPE="CORE_LOGIC" LAYER="1" ORDER="2" STATUS="planned">
+    <M-GRACE NAME="GraceInjector" TYPE="CORE_LOGIC" LAYER="1" ORDER="3" STATUS="planned">
       <contract>
         <purpose>Инъекция 5 GRACE XML-частей и парных закладок в .docx</purpose>
+        <scope>make_grace_manifest/instructions/graph/contracts/verification, inject_grace_parts, inject_bookmark_start/end</scope>
         <inputs>
           <param name="docx_path" type="Path" />
-          <param name="modules_info" type="list[dict]" />
+          <param name="modules_info" type="list[ModuleInfo]" />
         </inputs>
         <outputs>
           <param name="grace_docx_path" type="Path" />
@@ -165,16 +281,21 @@
         <export-make_grace_graph PURPOSE="Генерация grace-graph.xml с модулями и элементами" />
         <export-make_grace_contracts PURPOSE="Генерация grace-contracts.xml" />
         <export-make_grace_verification PURPOSE="Генерация grace-verification.xml" />
+        <export-inject_grace_parts PURPOSE="Инъекция 5 XML-частей в .docx архив" />
+        <export-inject_bookmark_start PURPOSE="Вставить bookmarkStart" />
+        <export-inject_bookmark_end PURPOSE="Вставить bookmarkEnd" />
       </interface>
-      <depends>M-STRUCTURE</depends>
+      <depends>M-CONFIG, M-DISCOVERY, M-TYPES</depends>
       <target>
-        <source>generate-grace-docx.py (секция GRACE XML)</source>
+        <source>src/grace_injector.py</source>
         <tests>tests/unit/test_grace_injector.py</tests>
       </target>
       <observability>
         <log-prefix>[GraceInjector]</log-prefix>
+        <critical-block>BLOCK_INJECT</critical-block>
         <critical-block>BLOCK_INJECT_BOOKMARKS</critical-block>
         <critical-block>BLOCK_WRITE_XML_PARTS</critical-block>
+        <critical-block>BLOCK_MANIFEST</critical-block>
       </observability>
       <verification-ref>V-M-GRACE</verification-ref>
       <notes>
@@ -183,11 +304,48 @@
       </notes>
     </M-GRACE>
 
+    <M-VALIDATOR NAME="OutputValidator" TYPE="UTILITY" LAYER="1" ORDER="4" STATUS="planned">
+      <contract>
+        <purpose>Проверка целостности сгенерированного .docx: XML-валидация, баланс закладок, Content_Types</purpose>
+        <scope>validate_grace_docx, _validate_grace_xml, _validate_bookmarks, _validate_content_types</scope>
+        <inputs>
+          <param name="docx_path" type="Path" />
+        </inputs>
+        <outputs>
+          <param name="validation_result" type="dict{valid, errors, warnings}" />
+        </outputs>
+        <errors>
+          <error code="BOOKMARK_IMBALANCE">Количество bookmarkStart != bookmarkEnd</error>
+          <error code="MISSING_GRACE_PART">GRACE XML-часть отсутствует в архиве</error>
+          <error code="XML_PARSE_ERROR">XML-часть не парсится</error>
+        </errors>
+      </contract>
+      <interface>
+        <export-validate_grace_docx PURPOSE="Полная проверка GRACE .docx" />
+      </interface>
+      <depends>M-GRACE, M-TYPES</depends>
+      <target>
+        <source>src/validator.py</source>
+        <tests>tests/unit/test_validator.py</tests>
+      </target>
+      <observability>
+        <log-prefix>[Validator]</log-prefix>
+        <critical-block>BLOCK_VALIDATE_BOOKMARKS</critical-block>
+        <critical-block>BLOCK_VALIDATE_XML</critical-block>
+        <critical-block>BLOCK_VALIDATE_CONTENT_TYPES</critical-block>
+      </observability>
+      <verification-ref>V-M-VALIDATOR</verification-ref>
+      <notes>
+        <note-1>Валидатор вызывается после генерации и может использоваться автономными агентами после редактирования.</note-1>
+      </notes>
+    </M-VALIDATOR>
+
     <M-DOCXBUILDER NAME="DocumentBuilder" TYPE="ENTRY_POINT" LAYER="2" ORDER="1" STATUS="planned">
       <contract>
-        <purpose>Точка входа: сборка полного документа с титульной страницей, оглавлением, главами</purpose>
+        <purpose>Точка входа: сборка полного документа с титульной страницей, оглавлением, главами через Docusaurus-first ordering</purpose>
+        <scope>main — оркестрация: sidebar → graph sync → cover → TOC → chapters → GRACE inject → validate</scope>
         <inputs>
-          <param name="chapters" type="list[ChapterInfo]" />
+          <param name="docs_dir" type="Path (from M-CONFIG)" />
         </inputs>
         <outputs>
           <param name="base_docx" type="Path" />
@@ -200,9 +358,9 @@
       <interface>
         <export-main PURPOSE="Точка входа скрипта" />
       </interface>
-      <depends>M-RENDERER, M-STRUCTURE, M-GRACE, M-VALIDATOR</depends>
+      <depends>M-CONFIG, M-PARSER, M-RENDERER, M-SIDEBAR, M-DISCOVERY, M-GRAPHSYNC, M-GRACE, M-VALIDATOR, M-TYPES</depends>
       <target>
-        <source>generate-grace-docx.py (функция main)</source>
+        <source>src/main.py</source>
         <tests>tests/integration/test_docx_builder.py</tests>
       </target>
       <observability>
@@ -210,60 +368,29 @@
         <critical-block>BUILD_COVER</critical-block>
         <critical-block>BUILD_TOC</critical-block>
         <critical-block>BUILD_CHAPTERS</critical-block>
+        <critical-block>BUILD_COMPLETE</critical-block>
       </observability>
       <verification-ref>V-M-DOCXBUILDER</verification-ref>
       <notes>
         <note-1>Титульная страница — 6 пустых параграфов + центрированный заголовок.</note-1>
+        <note-2>Порядок глав полностью определяется M-SIDEBAR — нет hardcoded OrderedDict.</note-2>
       </notes>
     </M-DOCXBUILDER>
-
-    <M-VALIDATOR NAME="OutputValidator" TYPE="UTILITY" LAYER="1" ORDER="3" STATUS="planned">
-      <contract>
-        <purpose>Проверка целостности сгенерированного .docx: XML-валидация, баланс закладок, Content_Types</purpose>
-        <inputs>
-          <param name="docx_path" type="Path" />
-        </inputs>
-        <outputs>
-          <param name="validation_result" type="dict" />
-        </outputs>
-        <errors>
-          <error code="BOOKMARK_IMBALANCE">Количество bookmarkStart != bookmarkEnd</error>
-          <error code="MISSING_GRACE_PART">GRACE XML-часть отсутствует в архиве</error>
-          <error code="XML_PARSE_ERROR">XML-часть не парсится</error>
-        </errors>
-      </contract>
-      <interface>
-        <export-validate_grace_docx PURPOSE="Полная проверка GRACE .docx" />
-      </interface>
-      <depends>M-GRACE</depends>
-      <target>
-        <source>generate-grace-docx.py (секция VALIDATION — планируется)</source>
-        <tests>tests/unit/test_validator.py</tests>
-      </target>
-      <observability>
-        <log-prefix>[Validator]</log-prefix>
-        <critical-block>BLOCK_VALIDATE_BOOKMARKS</critical-block>
-        <critical-block>BLOCK_VALIDATE_XML</critical-block>
-      </observability>
-      <verification-ref>V-M-VALIDATOR</verification-ref>
-      <notes>
-        <note-1>Валидатор вызывается после генерации и может использоваться автономными агентами после редактирования.</note-1>
-      </notes>
-    </M-VALIDATOR>
   </Modules>
 
   <DataFlow>
     <DF-001 NAME="FullGeneration" TRIGGER="Developer запускает скрипт">
-      <step-1>M-CONFIG загружает конфигурацию (пути, стили, маппинг глав)</step-1>
-      <step-2>M-STRUCTURE строит плоский список глав из CHAPTERS OrderedDict</step-2>
-      <step-3>M-DOCXBUILDER создаёт пустой Document, настраивает стили через M-CONFIG</step-3>
-      <step-4>M-DOCXBUILDER генерирует титульную страницу и оглавление</step-4>
-      <step-5>Для каждой главы: M-PARSER читает .md → M-RENDERER рендерит HTML в docx</step-5>
-      <step-6>M-DOCXBUILDER вставляет GRACE-закладки для каждого раздела</step-6>
-      <step-7>M-DOCXBUILDER сохраняет базовый .docx</step-7>
-      <step-8>M-GRACE распаковывает .docx, инъектирует 5 XML-частей, обновляет Content_Types и rels</step-8>
-      <step-9>M-GRACE упаковывает обратно в GRACE_.docx</step-9>
-      <step-10>M-VALIDATOR проверяет целостность выходного файла</step-10>
+      <step-1>M-CONFIG загружает конфигурацию (пути, стили, маппинг модулей)</step-1>
+      <step-2>M-SIDEBAR вызывает M-DISCOVERY для сканирования docs/ с _category_.json + sidebar_position</step-2>
+      <step-3>M-GRAPHSYNC синхронизирует knowledge-graph.xml с обнаруженными главами</step-3>
+      <step-4>M-DOCXBUILDER создаёт пустой Document, настраивает стили через M-CONFIG</step-4>
+      <step-5>M-DOCXBUILDER генерирует титульную страницу и оглавление</step-5>
+      <step-6>Для каждой главы: M-PARSER читает .md → M-RENDERER рендерит HTML в docx</step-6>
+      <step-7>M-DOCXBUILDER вставляет GRACE-закладки для каждого раздела</step-7>
+      <step-8>M-DOCXBUILDER сохраняет базовый .docx</step-8>
+      <step-9>M-GRACE распаковывает .docx, инъектирует 5 XML-частей, обновляет Content_Types и rels</step-9>
+      <step-10>M-GRACE упаковывает обратно в GRACE_.docx</step-10>
+      <step-11>M-VALIDATOR проверяет целостность выходного файла</step-11>
       <evidence>Лог: [DocxBuilder][main][BUILD_COMPLETE] modules=N, bookmarks=N, xml_parts=5</evidence>
     </DF-001>
 
@@ -280,10 +407,11 @@
     </DF-002>
 
     <DF-003 NAME="AddChapter" TRIGGER="Developer добавляет .md файл в docs/">
-      <step-1>Developer добавляет файл и обновляет CHAPTERS в скрипте</step-1>
-      <step-2>Запускается DF-001 FullGeneration</step-2>
-      <step-3>Новый модуль получает уникальный Module ID и закладку</step-3>
-      <step-4>Оглавление обновляется автоматически</step-4>
+      <step-1>Developer добавляет .md файл с front matter (sidebar_position, title)</step-1>
+      <step-2>M-SIDEBAR автоматически обнаруживает новый файл при следующем запуске</step-2>
+      <step-3>Запускается DF-001 FullGeneration</step-3>
+      <step-4>Новый модуль получает уникальный Module ID и закладку</step-4>
+      <step-5>Оглавление обновляется автоматически</step-5>
       <evidence>Новый модуль visible в grace-graph.xml; закладка парная</evidence>
     </DF-003>
 
@@ -295,27 +423,38 @@
       <step-5>Сравнивает количество H1 с количеством модулей в grace-graph.xml</step-5>
       <evidence>Отчёт: все инварианты пройдены / список нарушений</evidence>
     </DF-004>
+
+    <DF-005 NAME="SidebarConsistency" TRIGGER="M-SIDEBAR строит порядок глав">
+      <step-1>M-DISCOVERY сканирует docs/ и строит дерево ChapterNode</step-1>
+      <step-2>M-SIDEBAR сортирует по sidebar_position из front matter и _category_.json</step-2>
+      <step-3>M-GRAPHSYNC сравнивает с DocChapters в knowledge-graph.xml</step-3>
+      <step-4>При расхождении — M-GRAPHSYNC обновляет knowledge-graph.xml</step-4>
+      <evidence>Лог: [SidebarOrder][build_chapter_order][BUILD_SIDEBAR_ORDER] chapters=N</evidence>
+    </DF-005>
   </DataFlow>
 
   <ImplementationOrder>
-    <Phase-1 name="Refactor: modularize monolith" status="done">
-      <goal>Разбить monolith generate-grace-docx.py на модули с контрактами; покрыть юнит-тестами</goal>
-      <step-1 module="M-CONFIG" status="done" verification="V-M-CONFIG">Выделить конфигурацию в src/config.py с GRACE-разметкой</step-1>
-      <step-2 module="M-PARSER" status="done" verification="V-M-PARSER">Выделить парсер Markdown в src/parser.py с GRACE-разметкой</step-2>
-      <step-3 module="M-STRUCTURE" status="done" verification="V-M-STRUCTURE">Выделить структуру глав в src/structure.py</step-3>
-      <step-4 module="M-VALIDATOR" status="done" verification="V-M-VALIDATOR">Реализовать валидатор в src/validator.py</step-4>
+    <Phase-1 name="Foundation: types, config, parser, sidebar, discovery" status="planned">
+      <goal>Выделить общие типы, настроить конфигурацию, парсинг, определение порядка sidebar и сканирование файловой системы</goal>
+      <step-1 module="M-TYPES" status="pending" verification="V-M-TYPES">Создать src/types.py с frozen dataclasses: ChapterInfo, ModuleInfo, GraceModule</step-1>
+      <step-2 module="M-CONFIG" status="done" verification="V-M-CONFIG">Обновить src/config.py — добавить зависимость от M-TYPES</step-2>
+      <step-3 module="M-PARSER" status="done" verification="V-M-PARSER">Обновить src/parser.py — использовать M-TYPES при необходимости</step-3>
+      <step-4 module="M-DISCOVERY" status="done" verification="V-M-DISCOVERY">Обновить src/discovery.py — использовать ChapterInfo из M-TYPES</step-4>
+      <step-5 module="M-SIDEBAR" status="pending" verification="V-M-SIDEBAR">Создать src/sidebar_order.py — build_chapter_order через M-DISCOVERY</step-5>
     </Phase-1>
 
-    <Phase-2 name="Enhance: renderer and GRACE injector" status="pending">
-      <goal>Улучшить качество рендеринга и надёжность GRACE-инъекции</goal>
-      <step-1 module="M-RENDERER" status="pending" verification="V-M-RENDERER">Улучшить рендеринг таблиц, кода, изображений</step-1>
-      <step-2 module="M-GRACE" status="pending" verification="V-M-GRACE">Добавить element inventory (TABLE-DATA, TABLE-STRUCT) в grace-graph.xml</step-2>
-      <step-3 module="M-DOCXBUILDER" status="pending" verification="V-M-DOCXBUILDER">Интегрировать все модули в новую точку входа</step-3>
+    <Phase-2 name="Integration: graph sync, renderer, GRACE injector" status="planned">
+      <goal>Интеграция графа, улучшенный рендеринг, GRACE-инъекция с element inventory</goal>
+      <step-1 module="M-GRAPHSYNC" status="done" verification="V-M-GRAPHSYNC">Обновить src/graph_sync.py — использовать M-SIDEBAR для порядка</step-1>
+      <step-2 module="M-RENDERER" status="pending" verification="V-M-RENDERER">Улучшить рендеринг таблиц, кода, изображений в src/renderer.py</step-2>
+      <step-3 module="M-GRACE" status="pending" verification="V-M-GRACE">Обновить src/grace_injector.py — использовать M-TYPES, добавить element inventory</step-3>
     </Phase-2>
 
-    <Phase-3 name="Verify: integration and regression" status="pending">
-      <goal>Полная интеграционная проверка и регрессия</goal>
-      <step-1 module="M-DOCXBUILDER" status="pending" verification="V-M-DOCXBUILDER">Сквозной тест: Markdown → GRACE .docx → валидация</step-1>
+    <Phase-3 name="Assembly: document builder, validator, integration tests" status="planned">
+      <goal>Полная сборка документа через новую архитектуру, валидация и регрессия</goal>
+      <step-1 module="M-VALIDATOR" status="done" verification="V-M-VALIDATOR">Обновить src/validator.py — использовать M-TYPES</step-1>
+      <step-2 module="M-DOCXBUILDER" status="pending" verification="V-M-DOCXBUILDER">Переписать src/main.py — заменить OrderedDict на M-SIDEBAR</step-2>
+      <step-3 module="M-DOCXBUILDER" status="pending" verification="V-M-DOCXBUILDER">Сквозной тест: Markdown → GRACE .docx → валидация</step-3>
     </Phase-3>
   </ImplementationOrder>
 
@@ -324,7 +463,7 @@
     <controller-owns>docs/development-plan.xml, docs/knowledge-graph.xml, docs/verification-plan.xml</controller-owns>
     <worker-owns>Только модули src/*.py и тесты tests/ внутри утверждённого write scope.</worker-owns>
     <max-fix-attempts-per-step>2</max-fix-attempts-per-step>
-    <replan-trigger>Новая зависимость, конфликт контрактов, несовместимый API python-docx.</replan-trigger>
+    <replan-trigger>Новая зависимость, конфликт контрактов, несовместимый API python-docx, Docusaurus sidebar_position schema change.</replan-trigger>
     <checkpoint-requirement>Каждый шаг оставляет: assumptions, commands, evidence, next action.</checkpoint-requirement>
   </ExecutionPolicy>
 </DevelopmentPlan>

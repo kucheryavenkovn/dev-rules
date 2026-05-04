@@ -136,7 +136,8 @@
     "**/*.min.js",
     "**/*.bundle.js",
     "CHANGELOG.md",
-    "lighthouse-reports/**"
+    "lighthouse-reports/**",
+    ".kilocode/**"
   ],
   "ignoreWords": [],
   "flagWords": [],

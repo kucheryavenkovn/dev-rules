@@ -1,0 +1,89 @@
+<RequirementsAnalysis VERSION="0.2.0">
+  <Project>
+    <name>GRACE-DOCX Generator</name>
+    <annotation>Генератор Word-документа «Стандарты разработки» с GRACE-DOCX v3 семантической разметкой. Читает Markdown из docs/ репозитория dev-rules, конвертирует в структурированный .docx с титульной страницей, оглавлением, главами. Инъектирует 5 GRACE XML-частей и парные закладки для модулей-разделов документа.</annotation>
+    <keywords>1C, BSL, Word, docx, GRACE, markdown, documentation, standards, code-style, CI/CD, Git, RabbitMQ, Docusaurus, XML, semantic-markup</keywords>
+  </Project>
+
+  <Actors>
+    <actor-Developer>Разработчик, запускающий генератор для создания/обновления документа стандартов.</actor-Developer>
+    <actor-Agent>Автономный агент (LLM), редактирующий сгенерированный .docx через GRACE-контракты.</actor-Agent>
+    <actor-Reviewer>Рецензент, проверяющий корректность сгенерированного документа.</actor-Reviewer>
+  </Actors>
+
+  <UseCases>
+    <UC-001>
+      <Actor>Developer</Actor>
+      <Action>Запускает генератор для создания .docx из Markdown-источников</Action>
+      <Goal>Получить актуальный Word-документ стандартов разработки с GRACE-разметкой</Goal>
+      <Preconditions>Markdown-файлы в docs/ актуальны; Python-окружение настроено</Preconditions>
+      <AcceptanceCriteria>Файл GRACE_Стандарты_разработки.docx создан; 5 XML-частей валидны; закладки парные; документ открывается в Word без ошибок</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-001</RelatedFlows>
+    </UC-001>
+
+    <UC-002>
+      <Actor>Agent</Actor>
+      <Action>Читает GRACE-разметку и находит целевой раздел для редактирования</Action>
+      <Goal>Хирургически точно изменить содержимое конкретного раздела документа</Goal>
+      <Preconditions>Документ содержит GRACE-закладки и XML-части; агент следует протоколу из grace-manifest.xml</Preconditions>
+      <AcceptanceCriteria>Изменён только целевой раздел; закладки парные; grace-graph.xml обновлён; верификация пройдена</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-002</RelatedFlows>
+    </UC-003>
+
+    <UC-003>
+      <Actor>Developer</Actor>
+      <Action>Добавляет новую главу в репозиторий и перегенерирует документ</Action>
+      <Goal>Расширить документ стандартов новым разделом без нарушения существующей структуры</Goal>
+      <Preconditions>Новый .md файл добавлен в docs/; структура глав обновлена в скрипте</Preconditions>
+      <AcceptanceCriteria>Новая глава корректно отображается в оглавлении и теле документа; новый модуль получил GRACE-закладку; XML-части обновлены</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-003</RelatedFlows>
+    </UC-004>
+
+    <UC-004>
+      <Actor>Agent</Actor>
+      <Action>Запускает верификацию документа после редактирования</Action>
+      <Goal>Убедиться в целостности GRACE-разметки и корректности структуры документа</Goal>
+      <Preconditions>Документ был отредактирован через GRACE-протокол</Preconditions>
+      <AcceptanceCriteria>Все StructuralInvariants из grace-verification.xml пройдены; таблицы консистентны; закладки сбалансированы</AcceptanceCriteria>
+      <Priority>high</Priority>
+      <RelatedFlows>DF-004</RelatedFlows>
+    </UC-005>
+
+    <UC-005>
+      <Actor>Reviewer</Actor>
+      <Action>Проверяет корректность конвертации Markdown → Word</Action>
+      <Goal>Убедиться, что таблицы, списки, код и заголовки корректно перенесены в .docx</Goal>
+      <Preconditions>Документ сгенерирован</Preconditions>
+      <AcceptanceCriteria>Таблицы отображаются с правильными границами; код моноширинным шрифтом; заголовки в правильной иерархии; изображения на месте</AcceptanceCriteria>
+      <Priority>medium</Priority>
+      <RelatedFlows>DF-001</RelatedFlows>
+    </UC-005>
+  </UseCases>
+
+  <NonGoals>
+    <item-1>Не генерировать PDF — только .docx формат.</item-1>
+    <item-2>Не поддерживать онлайн-редактирование — только офлайн генерация.</item-1>
+    <item-3>Не внедрять систему сборки (Makefile, CI) в рамках v1.</item-3>
+  </NonGoals>
+
+  <Constraints>
+    <constraint-1>Выходной документ должен открываться в Microsoft Word 2016+ без ошибок.</constraint-1>
+    <constraint-2>GRACE XML-части не должны влиять на визуальное отображение документа.</constraint-2>
+    <constraint-3>Семантические закладки GRACE_* должны оставаться парными после любого редактирования.</constraint-3>
+    <constraint-4>Содержание документа — на русском языке.</constraint-4>
+  </Constraints>
+
+  <Risks>
+    <risk-1>Сложные Mermaid-диаграммы из Markdown не конвертируются в Word (теряются при рендеринге).</risk-1>
+    <risk-2>Изображения из docs/_img/ не встраиваются в .docx при относительных путях.</risk-2>
+    <risk-3>Разрыв закладок при ручном редактировании документа в Word.</risk-3>
+  </Risks>
+
+  <OpenQuestions>
+    <question-1>Нужно ли встраивать изображения из docs/_img/ в документ или оставить плейсхолдеры?</question-1>
+    <question-2>Требуется ли поддержка автоматического обновления документа при изменении Markdown?</question-2>
+  </OpenQuestions>
+</RequirementsAnalysis>

@@ -32,3 +32,8 @@ lighthouse-report*.json
 .cursor/plans/
 .cursor/projects/
 *.code-workspace
+
+# Python
+__pycache__/
+*.pyc
+.venv/

@@ -20,12 +20,15 @@
 #   setup_styles - настройка стилей документа Word
 # END_MODULE_MAP
 
+import logging
 import re
 from datetime import date
 from pathlib import Path
 
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.style import WD_STYLE_TYPE
+
+logger = logging.getLogger(__name__)
 
 # START_BLOCK_CONSTANTS
 DOCS_DIR = Path(r"D:\git\dev-rules\docs")
@@ -114,12 +117,15 @@ def derive_module_id(heading, existing_ids):
     mid = _MODULE_ID_SPECIAL.get(heading)
     if mid:
         if mid not in existing_ids:
+            logger.info("[Config][derive_module_id][BLOCK_DERIVE_ID] resolved=%s heading='%s' source=special", mid, heading)
             return mid
         base = mid
         counter = 2
         while f"{base}-{counter}" in existing_ids:
             counter += 1
-        return f"{base}-{counter}"
+        resolved = f"{base}-{counter}"
+        logger.info("[Config][derive_module_id][BLOCK_DERIVE_ID] resolved=%s heading='%s' source=special-dup counter=%d", resolved, heading, counter)
+        return resolved
     clean = re.sub(r"[^A-Za-z0-9]", "", heading).upper()
     if len(clean) >= 3:
         candidate = "M-" + clean[:5]
@@ -127,6 +133,7 @@ def derive_module_id(heading, existing_ids):
         candidate = "M-SEC" + str(len(existing_ids) + 100)
     while candidate in existing_ids:
         candidate = candidate + str(len(existing_ids))
+    logger.info("[Config][derive_module_id][BLOCK_DERIVE_ID] resolved=%s heading='%s' source=generated", candidate, heading)
     return candidate
 # END_BLOCK_DERIVE_ID
 
@@ -138,20 +145,24 @@ def classify_module_type(html_content):
     has_code = "<code>" in html_content.lower() or "<pre>" in html_content.lower()
     has_prose = "<p>" in html_content.lower()
     if has_tables and has_code and has_prose:
-        return "MIXED"
-    if has_tables and has_code:
-        return "MIXED"
-    if has_tables:
-        return "DATA"
-    if has_code or has_prose:
-        return "NARRATIVE"
-    return "NARRATIVE"
+        result = "MIXED"
+    elif has_tables and has_code:
+        result = "MIXED"
+    elif has_tables:
+        result = "DATA"
+    elif has_code or has_prose:
+        result = "NARRATIVE"
+    else:
+        result = "NARRATIVE"
+    logger.debug("[Config][classify_module_type][BLOCK_CLASSIFY_TYPE] type=%s tables=%s code=%s prose=%s", result, has_tables, has_code, has_prose)
+    return result
 # END_BLOCK_CLASSIFY_TYPE
 
 
 # START_BLOCK_SETUP_STYLES
 def setup_styles(doc):
     """Настроить стили документа Word."""
+    logger.info("[Config][setup_styles][BLOCK_SETUP_STYLES] configuring styles")
     style = doc.styles["Normal"]
     style.font.name = "Calibri"
     style.font.size = Pt(11)

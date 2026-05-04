@@ -20,6 +20,7 @@
 import zipfile
 import shutil
 import tempfile
+import logging
 from pathlib import Path
 
 from docx.oxml.ns import qn
@@ -27,6 +28,8 @@ from docx.oxml import OxmlElement
 
 from src.config import DOC_NAME, DOC_VERSION, GRACE_VERSION
 from src.graph_sync import build_grace_graph_xml
+
+logger = logging.getLogger(__name__)
 
 
 GRACE_PART_NAMES = [
@@ -64,7 +67,7 @@ def make_grace_manifest(modules_info, today_str):
     ], 1):
         steps_xml += f'    <step-{i}>{step}</step-{i}>\n'
 
-    return f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    manifest = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <GraceManifest VERSION="{GRACE_VERSION}" SCHEMA="grace-docx">
   <document-name>{DOC_NAME}</document-name>
   <document-version>{DOC_VERSION}</document-version>
@@ -83,6 +86,8 @@ def make_grace_manifest(modules_info, today_str):
     <description>Each H1 section gets a w:bookmarkStart/w:bookmarkEnd pair named GRACE_{{MODULE-ID}}.</description>
   </BookmarkConvention>
 </GraceManifest>'''
+    logger.debug("[GraceInjector][make_grace_manifest][BLOCK_MANIFEST] modules=%d", len(modules_info))
+    return manifest
 # END_BLOCK_MANIFEST
 
 
@@ -215,6 +220,7 @@ def inject_grace_parts(base_docx_path, grace_docx_path, modules_info,
                        total_paras, total_tables, total_h1, total_h2,
                        today_str):
     """Распаковать .docx, внедрить 5 GRACE XML + обновить Content_Types и rels, упаковать."""
+    logger.info("[GraceInjector][inject_grace_parts][BLOCK_INJECT] base=%s modules=%d paras=%d tables=%d", base_docx_path.name, len(modules_info), total_paras, total_tables)
     tmp_dir = Path(tempfile.mkdtemp())
     grace_dir = tmp_dir / "word"
     grace_dir.mkdir(exist_ok=True)
@@ -260,6 +266,7 @@ def inject_grace_parts(base_docx_path, grace_docx_path, modules_info,
                 zout.write(str(file_path), str(arcname))
 
     shutil.rmtree(str(tmp_dir))
+    logger.info("[GraceInjector][inject_grace_parts][BLOCK_INJECT] output=%s", grace_docx_path.name)
 # END_BLOCK_INJECT
 
 

@@ -16,9 +16,13 @@
 #   md_to_html - конвертировать Markdown → HTML
 # END_MODULE_MAP
 
+import logging
+
 import markdown
 
 from src.config import DOCS_DIR
+
+logger = logging.getLogger(__name__)
 
 
 # START_BLOCK_PARSE_FRONTMATTER
@@ -27,6 +31,7 @@ def strip_frontmatter(text):
     if text.startswith("---"):
         parts = text.split("---", 2)
         if len(parts) >= 3:
+            logger.debug("[Parser][strip_frontmatter][BLOCK_PARSE_FRONTMATTER] stripped frontmatter len=%d", len(parts[1]))
             return parts[2].strip()
     return text
 
@@ -39,7 +44,9 @@ def get_frontmatter_title(text):
             fm = parts[1]
             for line in fm.splitlines():
                 if line.strip().startswith("title:"):
-                    return line.split(":", 1)[1].strip().strip('"').strip("'")
+                    title = line.split(":", 1)[1].strip().strip('"').strip("'")
+                    logger.debug("[Parser][get_frontmatter_title][BLOCK_PARSE_FRONTMATTER] title='%s'", title)
+                    return title
     return None
 # END_BLOCK_PARSE_FRONTMATTER
 
@@ -49,6 +56,7 @@ def read_md(rel_path):
     """Прочитать markdown файл и вернуть (title, clean_text)."""
     fpath = DOCS_DIR / rel_path
     if not fpath.exists():
+        logger.warning("[Parser][read_md][BLOCK_READ_MD] file not found: %s", rel_path)
         return None, None
     text = fpath.read_text(encoding="utf-8")
     title = get_frontmatter_title(text)
@@ -58,6 +66,7 @@ def read_md(rel_path):
             if line.startswith("# "):
                 title = line[2:].strip()
                 break
+    logger.info("[Parser][read_md][BLOCK_READ_MD] path=%s title='%s' len=%d", rel_path, title, len(clean))
     return title, clean
 # END_BLOCK_READ_MD
 
@@ -65,9 +74,11 @@ def read_md(rel_path):
 # START_BLOCK_MD_TO_HTML
 def md_to_html(md_text):
     """Конвертировать Markdown → HTML через библиотеку markdown."""
-    return markdown.markdown(
+    html = markdown.markdown(
         md_text,
         extensions=["tables", "fenced_code", "toc", "codehilite"],
         extension_defaults={"codehilite": {"guess_lang": False}},
     )
+    logger.debug("[Parser][md_to_html][BLOCK_MD_TO_HTML] output_len=%d", len(html))
+    return html
 # END_BLOCK_MD_TO_HTML
