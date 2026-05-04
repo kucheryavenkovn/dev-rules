@@ -1,14 +1,21 @@
 # FILE: tests/unit/test_renderer.py
-# VERSION: 1.0.0
+# VERSION: 1.1.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Юнит-тесты модуля M-RENDERER (src/renderer.py)
-#   SCOPE: render_html_to_doc, render_paragraph, render_table, render_list
+#   SCOPE: render_html_to_doc, render_paragraph, render_table, render_list, render_image
 #   DEPENDS: M-RENDERER
 #   LINKS: V-M-RENDERER
 #   ROLE: TEST
 #   MAP_MODE: LOCALS
 # END_MODULE_CONTRACT
 
+import struct
+import zlib
+
+import logging
+from pathlib import Path
+
+import pytest
 from docx import Document
 
 from src.config import setup_styles
@@ -24,6 +31,23 @@ def _make_doc():
     doc = Document()
     setup_styles(doc)
     return doc
+
+
+def _write_valid_png(path, width=4, height=4):
+    def _chunk(chunk_type, data):
+        c = chunk_type + data
+        crc = struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
+        return struct.pack(">I", len(data)) + c + crc
+
+    sig = b"\x89PNG\r\n\x1a\n"
+    ihdr_data = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    ihdr = _chunk(b"IHDR", ihdr_data)
+    raw = b""
+    for y in range(height):
+        raw += b"\x00" + b"\xff\x00" * width
+    idat = _chunk(b"IDAT", zlib.compress(raw))
+    iend = _chunk(b"IEND", b"")
+    path.write_bytes(sig + ihdr + idat + iend)
 
 
 class TestRenderTable:
@@ -167,8 +191,9 @@ class TestRenderList:
         ol_el = soup.find("ol")
         render_list(doc, ol_el, ordered=True)
 
-        list_items = [p for p in doc.paragraphs if p.text.strip() in ("First", "Second")]
+        list_items = [p for p in doc.paragraphs if "First" in p.text or "Second" in p.text]
         assert len(list_items) >= 2
+        assert list_items[0].text.strip().startswith("1.")
 
     def test_nested_list(self):
         doc = _make_doc()
@@ -216,11 +241,32 @@ class TestRenderHtmlToDoc:
         assert "Before" in texts
         assert "After" in texts
 
-    def test_img_skipped(self):
+    def test_img_embedded_from_base_dir(self, tmp_path):
+        img_file = tmp_path / "test.png"
+        _write_valid_png(img_file)
         doc = _make_doc()
-        html = '<p>Text</p><img src="test.png"/>'
-        render_html_to_doc(doc, html)
-        assert len(doc.paragraphs) >= 1
+        html = '<img src="test.png"/>'
+        render_html_to_doc(doc, html, img_base_dir=tmp_path)
+        inline_shapes = doc.inline_shapes
+        assert len(inline_shapes) >= 1
+
+    def test_img_missing_produces_placeholder(self):
+        doc = _make_doc()
+        html = '<img src="nonexistent.png"/>'
+        render_html_to_doc(doc, html, img_base_dir=Path("/tmp"))
+        placeholder_paras = [p for p in doc.paragraphs if "[Image:" in p.text]
+        assert len(placeholder_paras) >= 1
+
+    def test_img_subdirectory_resolved(self, tmp_path):
+        sub = tmp_path / "img"
+        sub.mkdir()
+        img_file = sub / "photo.png"
+        _write_valid_png(img_file)
+        doc = _make_doc()
+        html = '<img src="img/photo.png"/>'
+        render_html_to_doc(doc, html, img_base_dir=tmp_path)
+        inline_shapes = doc.inline_shapes
+        assert len(inline_shapes) >= 1
 
     def test_full_html_document(self):
         doc = _make_doc()
@@ -235,3 +281,33 @@ class TestRenderHtmlToDoc:
 
         assert len(doc.tables) == 1
         assert any(p.style.name == "Code" for p in doc.paragraphs)
+
+
+class TestListNumberingRestart:
+    def test_two_ol_restart_at_one(self):
+        doc = _make_doc()
+        html = "<ol><li>A</li><li>B</li></ol><p>text</p><ol><li>C</li><li>D</li></ol>"
+        render_html_to_doc(doc, html)
+
+        ol_paras = [
+            p for p in doc.paragraphs
+            if p.text.strip() in ("A", "B", "C", "D")
+            or p.text.strip().startswith(("1.", "2."))
+        ]
+        texts = [p.text.strip() for p in ol_paras]
+        first_numbers = [t for t in texts if t.startswith("1.")]
+        assert len(first_numbers) >= 2, f"Expected at least two '1.' prefixes, got: {texts}"
+
+    def test_ol_uses_explicit_number_not_list_number_style(self):
+        doc = _make_doc()
+        html = "<ol><li>Item</li></ol>"
+        render_html_to_doc(doc, html)
+
+        ol_paras = [
+            p for p in doc.paragraphs
+            if "Item" in p.text
+        ]
+        assert len(ol_paras) >= 1
+        p = ol_paras[0]
+        assert p.style.name != "List Number", f"Should NOT use List Number style, got: {p.style.name}"
+        assert p.text.strip().startswith("1."), f"Should start with explicit '1.', got: {p.text}"

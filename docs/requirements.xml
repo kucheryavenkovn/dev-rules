@@ -57,7 +57,7 @@
       <Action>Проверяет корректность конвертации Markdown → Word</Action>
       <Goal>Убедиться, что таблицы, списки, код и заголовки корректно перенесены в .docx</Goal>
       <Preconditions>Документ сгенерирован</Preconditions>
-      <AcceptanceCriteria>Таблицы отображаются с правильными границами; код моноширинным шрифтом; заголовки в правильной иерархии; изображения на месте</AcceptanceCriteria>
+      <AcceptanceCriteria>Таблицы отображаются с правильными границами; код моноширинным шрифтом; заголовки в правильной иерархии; изображения встроены из docs/_img/ и docs/*/img/</AcceptanceCriteria>
       <Priority>medium</Priority>
       <RelatedFlows>DF-001</RelatedFlows>
     </UC-005>
@@ -83,7 +83,7 @@
   </Risks>
 
   <OpenQuestions>
-    <question-1>Нужно ли встраивать изображения из docs/_img/ в документ или оставить плейсхолдеры?</question-1>
+    <question-1 RESOLVED="YES" DECISION="Встраивать изображения из docs/_img/ и docs/*/img/ в .docx через render_image. Разрешать относительные пути из chapter_rel_path. Если файл не найден — плейсхолдер [Image: src].">Нужно ли встраивать изображения из docs/_img/ в документ или оставить плейсхолдеры?</question-1>
     <question-2>Требуется ли поддержка автоматического обновления документа при изменении Markdown?</question-2>
   </OpenQuestions>
 </RequirementsAnalysis>

@@ -51,6 +51,11 @@
     <MatrixRow module="M-RENDERER" scenario="render-empty-table" type="D" contract="Empty table does not crash" />
     <MatrixRow module="M-RENDERER" scenario="render-blockquote" type="D" contract="Blockquote renders indented italic" />
     <MatrixRow module="M-RENDERER" scenario="render-recursion-limit" type="D" contract="Nested divs stop at depth 5" />
+    <MatrixRow module="M-RENDERER" scenario="render-image-embed" type="D" contract="Image from docs/_img/ embedded in docx via render_image" />
+    <MatrixRow module="M-RENDERER" scenario="render-image-missing" type="D" contract="Missing image produces [Image: src] placeholder + warning" />
+    <MatrixRow module="M-RENDERER" scenario="render-image-subdirectory" type="D" contract="Image in docs/principles/img/ resolved relative to chapter parent dir" />
+    <MatrixRow module="M-RENDERER" scenario="ol-restart-numbering" type="D" contract="Two separate ol elements restart at 1 — no continuous numbering" />
+    <MatrixRow module="M-RENDERER" scenario="ol-explicit-text" type="D" contract="ol li items use explicit number prefix (1. 2. ) not List Number style" />
     <MatrixRow module="M-GRACE" scenario="manifest-valid-xml" type="D" contract="make_grace_manifest produces well-formed XML" />
     <MatrixRow module="M-GRACE" scenario="instructions-valid-xml" type="D" contract="make_grace_instructions produces well-formed XML" />
     <MatrixRow module="M-GRACE" scenario="contracts-valid-xml" type="D" contract="make_grace_contracts produces well-formed XML" />
@@ -137,6 +142,24 @@
       <evidence-type>deterministic</evidence-type>
       <stop-condition>Если количество глав отличается от ожидаемого более чем на 5% — HALT и replan.</stop-condition>
     </VF-007>
+
+    <VF-008 NAME="ImageEmbedding" USE_CASES="UC-001 UC-005" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>Изображения из docs/_img/, docs/principles/img/ etc. встроены в .docx</scenario>
+      <expected-outcome>Все img теги с локальными путями встроены как InlineShape; отсутствующие изображения заменены плейсхолдером [Image: src]</expected-outcome>
+      <required-signals>
+        <log-marker>[Renderer][render_image][BLOCK_RENDER_IMAGE]</log-marker>
+      </required-signals>
+      <evidence-type>deterministic</evidence-type>
+    </VF-008>
+
+    <VF-009 NAME="ListNumberingRestart" USE_CASES="UC-001 UC-005" DATA_FLOW="DF-001" PRIORITY="high">
+      <scenario>Нумерованные списки перезапускаются для каждого нового ol — нет сквозной нумерации</scenario>
+      <expected-outcome>layout.md «Имена методов» содержит два ol: 1-4, затем 1-2 — без чисел 36-43</expected-outout>
+      <required-signals>
+        <log-marker>[Renderer][render_list][BLOCK_RENDER_LIST]</log-marker>
+      </required-signals>
+      <evidence-type>deterministic</evidence-type>
+    </VF-009>
   </CriticalFlows>
 
   <ModuleVerification>
@@ -356,21 +379,28 @@
         <scenario-6 kind="success">Blockquote рендерится с отступом и курсивом</scenario-6>
         <scenario-7 kind="success">Заголовки h1-h4 рендерятся с depth_offset</scenario-7>
         <scenario-8 kind="success">Рекурсия div/section ограничена глубиной 5</scenario-8>
+        <scenario-9 kind="success">Изображение из docs/_img/ встроено в docx через render_image</scenario-9>
+        <scenario-10 kind="failure">Отсутствующее изображение → параграф-плейсхолдер [Image: src] + warning</scenario-10>
+        <scenario-11 kind="success">Изображение из подкаталога (docs/principles/img/) найдено через img_base_dir</scenario-11>
+        <scenario-12 kind="success">Два отдельных ol перезапускают нумерацию с 1 (нет сквозной)</scenario-12>
+        <scenario-13 kind="success">ol элементы используют явный текст числа ("1. ") + Normal стиль, НЕ List Number</scenario-13>
       </scenarios>
       <required-log-markers>
         <marker-1>[Renderer][render_table][BLOCK_RENDER_TABLE]</marker-1>
         <marker-2>[Renderer][render_html_to_doc][BLOCK_RENDER_HTML]</marker-2>
+        <marker-3>[Renderer][render_image][BLOCK_RENDER_IMAGE]</marker-3>
       </required-log-markers>
       <required-trace-assertions>
         <assertion-1>Таблица имеет table.rows == expected и table.columns == expected</assertion-1>
         <assertion-2>Code paragraphs используют style "Code"</assertion-2>
+        <assertion-3>render_image вызывает doc.add_picture для существующего файла</assertion-3>
+        <assertion-4>ol нумерация перезапускается для каждого нового ol элемента</assertion-4>
       </required-trace-assertions>
-      <wave-follow-up>Интеграция с реальными Markdown-файлами из docs/</wave-follow-up>
       <phase-follow-up>Полная регрессия рендеринга</phase-follow-up>
       <autonomy-readiness>
         <local-commands-exist>true</local-commands-exist>
         <success-and-failure-covered>true</success-and-failure-covered>
-        <markers-observable>false</markers-observable>
+        <markers-observable>true</markers-observable>
         <wave-phase-followup>true</wave-phase-followup>
         <packet-fields-sufficient>true</packet-fields-sufficient>
         <gap>Нет</gap>
@@ -525,7 +555,7 @@
       <required-evidence>
         <evidence-1>DF-001 FullGeneration проходит без ошибок</evidence-1>
         <evidence-2>Закладки парные, 5 XML-частей — всё валидно</evidence-2>
-        <evidence-3>Все VF-001..VF-007 CriticalFlows пройдены</evidence-3>
+        <evidence-3>Все VF-001..VF-009 CriticalFlows пройдены</evidence-3>
         <evidence-4>validate_grace_docx возвращает valid=True</evidence-4>
         <evidence-5>Порядок глав в .docx совпадает с Docusaurus sidebar</evidence-5>
       </required-evidence>
@@ -543,7 +573,7 @@
     <overall-status>ready</overall-status>
     <module-local-commands>Все модули имеют pytest commands в module-checks</module-local-commands>
     <success-failure-coverage>Все V-M-xxx имеют success + failure scenarios</success-failure-coverage>
-    <trace-observability>Все модули имеют structured logging с BLOCK markers: Types (pure data), Config BLOCK_DERIVE_ID, Parser BLOCK_READ_MD/BLOCK_PARSE_FRONTMATTER/BLOCK_MD_TO_HTML, Discovery BLOCK_SCAN_DOCS/BLOCK_READ_CATEGORY/BLOCK_FLATTEN, SidebarOrder BUILD_SIDEBAR_ORDER, GraphSync BLOCK_SYNC_FS_TO_GRAPH, Renderer BLOCK_RENDER_HTML/BLOCK_RENDER_TABLE, GraceInjector BLOCK_INJECT/BLOCK_MANIFEST, Validator BLOCK_VALIDATE_XML/BLOCK_VALIDATE_BOOKMARKS/BLOCK_VALIDATE_CONTENT_TYPES, DocxBuilder BUILD_COMPLETE</trace-observability>
+    <trace-observability>Все модули имеют structured logging с BLOCK markers: Types (pure data), Config BLOCK_DERIVE_ID, Parser BLOCK_READ_MD/BLOCK_PARSE_FRONTMATTER/BLOCK_MD_TO_HTML, Discovery BLOCK_SCAN_DOCS/BLOCK_READ_CATEGORY/BLOCK_FLATTEN, SidebarOrder BUILD_SIDEBAR_ORDER, GraphSync BLOCK_SYNC_FS_TO_GRAPH, Renderer BLOCK_RENDER_HTML/BLOCK_RENDER_TABLE/BLOCK_RENDER_IMAGE, GraceInjector BLOCK_INJECT/BLOCK_MANIFEST, Validator BLOCK_VALIDATE_XML/BLOCK_VALIDATE_BOOKMARKS/BLOCK_VALIDATE_CONTENT_TYPES, DocxBuilder BUILD_COMPLETE</trace-observability>
     <wave-phase-gates>Gate-Phase-1/2/3 определены с commands и required-evidence</wave-phase-gates>
     <packet-sufficiency>FailurePacket template имеет 5 полей — достаточно для handoff</packet-sufficiency>
     <blocking-gap>Нет</blocking-gap>
