@@ -1,9 +1,9 @@
 # FILE: src/main.py
-# VERSION: 1.0.0
+# VERSION: 2.0.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Точка входа генератора Word-документа с GRACE-разметкой
 #   SCOPE: main — сборка документа: титульная → оглавление → главы → GRACE инъекция → валидация
-#   DEPENDS: M-CONFIG, M-RENDERER, M-STRUCTURE, M-GRACE, M-VALIDATOR, M-DISCOVERY, M-GRAPHSYNC
+#   DEPENDS: M-CONFIG, M-RENDERER, M-SIDEBAR, M-GRACE, M-VALIDATOR, M-DISCOVERY, M-GRAPHSYNC, M-TYPES
 #   LINKS: M-DOCXBUILDER
 #   ROLE: ENTRY_POINT
 #   MAP_MODE: EXPORTS
@@ -29,7 +29,8 @@ from src.config import (
     OUTPUT_PATH, GRACE_VERSION, derive_module_id,
 )
 from src.parser import read_md, md_to_html
-from src.structure import collect_chapters
+from src.sidebar_order import build_chapter_order
+from src.types import ChapterInfo
 from src.renderer import render_html_to_doc
 from src.grace_injector import inject_grace_parts, inject_bookmark_start, inject_bookmark_end
 from src.validator import validate_grace_docx
@@ -189,33 +190,31 @@ def main():
 
     # START_BLOCK_TOC
     print("[3/6] Построение оглавления...")
-    chapters = collect_chapters(use_graph=True)
+    chapters = build_chapter_order(use_graph=True)
     if not chapters:
         print("       Fallback: chapters пустые, используем discovery напрямую")
-        chapters = collect_chapters(use_graph=False)
+        chapters = build_chapter_order(use_graph=False)
 
     existing_ids = set()
+    resolved = []
     for ch in chapters:
-        if ch.get("module_id"):
-            existing_ids.add(ch["module_id"])
+        mid = ch.module_id or derive_module_id(ch.heading, existing_ids)
+        existing_ids.add(mid)
+        resolved.append(ch.with_module_id(mid))
+    chapters = resolved
 
     toc_heading = doc.add_heading("Оглавление", level=1)
 
     for ch in chapters:
         toc_p = doc.add_paragraph()
-        depth = ch.get("depth", 0)
-        toc_p.paragraph_format.left_indent = Cm(depth * 0.75)
+        toc_p.paragraph_format.left_indent = Cm(ch.depth * 0.75)
 
-        mid = ch.get("module_id") or derive_module_id(ch["heading"], existing_ids)
-        existing_ids.add(mid)
-        ch["module_id"] = mid
-
-        bookmark_name = f"GRACE_{mid}"
-        font_size = 12 if depth == 0 else 11
-        is_bold = depth == 0
+        bookmark_name = f"GRACE_{ch.module_id}"
+        font_size = 12 if ch.depth == 0 else 11
+        is_bold = ch.depth == 0
 
         add_toc_tab_stop(toc_p)
-        add_toc_hyperlink(toc_p, bookmark_name, ch["heading"], font_size, bold=is_bold)
+        add_toc_hyperlink(toc_p, bookmark_name, ch.heading, font_size, bold=is_bold)
         add_tab_run(toc_p)
         add_pageref_field(toc_p, bookmark_name, font_size)
 
@@ -232,16 +231,16 @@ def main():
     modules_info = []
 
     for ch in chapters:
-        mid = ch.get("module_id") or derive_module_id(ch["heading"], {m["id"] for m in modules_info})
-        depth = ch.get("depth", 0)
+        mid = ch.module_id
+        depth = ch.depth
         heading_level = min(depth + 1, 4)
 
-        heading_para = doc.add_heading(ch["heading"], level=heading_level)
+        heading_para = doc.add_heading(ch.heading, level=heading_level)
 
         inject_bookmark_start(heading_para, bookmark_id, mid)
 
-        ch["bookmark_start_id"] = bookmark_id
-        ch["para_start"] = para_counter
+        para_start = para_counter
+        current_bookmark_id = bookmark_id
         bookmark_id += 1
         para_counter += 1
 
@@ -253,8 +252,8 @@ def main():
         mod_type = "NARRATIVE"
         mod_elements = []
 
-        if ch.get("source"):
-            title, md_text = read_md(ch["source"])
+        if ch.source:
+            title, md_text = read_md(ch.source)
             if md_text:
                 html = md_to_html(md_text)
                 mod_type = classify_module_type(html)
@@ -275,21 +274,20 @@ def main():
         else:
             mod_type = "NAVIGATION"
 
-        ch["type"] = mod_type
-        ch["para_end"] = para_counter - 1
+        para_end = para_counter - 1
 
-        inject_bookmark_end(doc, ch["bookmark_start_id"])
+        inject_bookmark_end(doc, current_bookmark_id)
 
         modules_info.append({
             "id": mid,
-            "heading": ch["heading"],
+            "heading": ch.heading,
             "type": mod_type,
-            "para_start": ch["para_start"],
-            "para_end": ch["para_end"],
+            "para_start": para_start,
+            "para_end": para_end,
             "elements": mod_elements,
             "subsections": [],
-            "parent": ch.get("parent_heading"),
-            "parent_heading": ch.get("parent_heading"),
+            "parent": ch.parent_heading,
+            "parent_heading": ch.parent_heading,
         })
     # END_BLOCK_CHAPTERS
 
@@ -341,7 +339,7 @@ Output:
   Base:    {OUTPUT_PATH}
   GRACE:   {grace_output}
   Status:  {status}
-=============================================""")
+============================================""")
     # END_BLOCK_REPORT
 
 
