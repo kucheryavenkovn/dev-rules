@@ -1,9 +1,9 @@
 # FILE: src/grace_injector.py
-# VERSION: 1.0.0
+# VERSION: 1.1.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Инъекция 5 GRACE XML-частей и парных закладок в .docx архив
 #   SCOPE: inject_grace_parts, make_grace_manifest, make_grace_instructions, make_grace_contracts, make_grace_verification
-#   DEPENDS: M-CONFIG, M-GRAPHSYNC
+#   DEPENDS: M-CONFIG, M-GRAPHSYNC, M-TYPES
 #   LINKS: M-GRACE
 #   ROLE: RUNTIME
 #   MAP_MODE: EXPORTS
@@ -28,8 +28,15 @@ from docx.oxml import OxmlElement
 
 from src.config import DOC_NAME, DOC_VERSION, GRACE_VERSION
 from src.graph_sync import build_grace_graph_xml
+from src.types import ModuleInfo
 
 logger = logging.getLogger(__name__)
+
+
+def _as_dict(mod):
+    if isinstance(mod, ModuleInfo):
+        return mod.to_dict()
+    return mod
 
 
 GRACE_PART_NAMES = [
@@ -126,18 +133,19 @@ def make_grace_instructions():
 def make_grace_contracts(modules_info):
     module_contracts = ""
     for mod in modules_info:
-        parent_type = "C-NARRATIVE" if mod["type"] in ("NARRATIVE", "META", "NAVIGATION", "REFERENCE") else \
-                     "C-TABLE-DATA" if mod["type"] == "DATA" else "C-MIXED"
+        m = _as_dict(mod)
+        parent_type = "C-NARRATIVE" if m["type"] in ("NARRATIVE", "META", "NAVIGATION", "REFERENCE") else \
+                     "C-TABLE-DATA" if m["type"] == "DATA" else "C-MIXED"
         module_contracts += f'''
-    <C-{mod["id"]} inherits="{parent_type}">
-      <description>{mod["heading"]} — {mod["type"]}-type section</description>
+    <C-{m["id"]} inherits="{parent_type}">
+      <description>{m["heading"]} — {m["type"]}-type section</description>
       <can-edit>
         <item>Add paragraphs after existing content, modify text runs</item>
       </can-edit>
       <cannot-edit>
         <item>Change heading styles or structure</item>
       </cannot-edit>
-    </C-{mod["id"]}>'''
+    </C-{m["id"]}>'''
 
     return f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <GraceContracts VERSION="3.0.0">
