@@ -119,6 +119,29 @@ tests/
   ... tests with GRACE-aware evidence where appropriate ...
 ```
 
+## Binary File Handling — .docx
+
+`.docx` файлы являются **бинарными** (ZIP-архивы с XML-содержимым). Их **НЕЛЬЗЯ** читать напрямую через инструменты чтения файлов — это вызовет ошибку `Cannot read binary file`.
+
+### Как работать с .docx
+
+Для анализа или редактирования .docx файла следуй протоколу из `grace-docx-bootstrap-v3.md`:
+
+1. **Распакуй** .docx (это ZIP-архив): `python -c "import zipfile; zipfile.ZipFile('file.docx').extractall('tmp/')"` или через `src/validator.py`
+2. **Читай XML внутри**: `word/document.xml`, `word/grace-manifest.xml`, `word/grace-graph.xml` и т.д.
+3. **Редактируй** XML-файлы по контрактам из `grace-contracts.xml`
+4. **Упакуй** обратно: пересобери ZIP с расширением `.docx`
+
+Для валидации GRACE-разметки используй `src/validator.py`:
+```bash
+python -c "from src.validator import validate_grace_docx; import json; r=validate_grace_docx('GRACE_Стандарты_разработки.docx'); print(json.dumps(r, ensure_ascii=False, indent=2))"
+```
+
+Для инспекции содержимого .docx без распаковки:
+```bash
+python -c "import zipfile; z=zipfile.ZipFile('GRACE_Стандарты_разработки.docx'); print('\n'.join(z.namelist()))"
+```
+
 ## Documentation Artifacts - Unique Tag Convention
 
 In `docs/*.xml`, repeated entities must use their unique ID as the XML tag name instead of a generic tag with an `ID` attribute. This reduces closing-tag ambiguity and gives LLMs stronger anchors.
