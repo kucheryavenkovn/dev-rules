@@ -2,7 +2,7 @@
 # VERSION: 1.0.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Конфигурация генератора: пути, версия документа, стили Word, маппинг заголовков → Module ID
-#   SCOPE: derive_module_id, classify_module_type, setup_styles, CHAPTERS, константы путей
+#   SCOPE: derive_module_id, classify_module_type, setup_styles, константы путей
 #   DEPENDS: none
 #   LINKS: M-CONFIG
 #   ROLE: RUNTIME
@@ -15,7 +15,6 @@
 #   DOC_NAME - название документа
 #   DOC_VERSION - версия документа
 #   GRACE_VERSION - версия GRACE
-#   CHAPTERS - OrderedDict иерархии глав
 #   derive_module_id - генерация уникального Module ID из заголовка
 #   classify_module_type - классификация типа модуля по HTML
 #   setup_styles - настройка стилей документа Word
@@ -24,7 +23,6 @@
 import re
 from datetime import date
 from pathlib import Path
-from collections import OrderedDict
 
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.style import WD_STYLE_TYPE
@@ -37,99 +35,6 @@ DOC_VERSION = "1.0"
 GRACE_VERSION = "3.0.0"
 TODAY = date.today().isoformat()
 # END_BLOCK_CONSTANTS
-
-# START_BLOCK_CHAPTERS
-CHAPTERS = OrderedDict([
-    ("Введение", "intro.md"),
-    ("Начало разработки", "begin.md"),
-    ("Оформление кода", "layout.md"),
-    ("Запросы", "request.md"),
-    ("Управляемые формы", "forms.md"),
-    ("Блокировка форм", "blocking_forms.md"),
-    ("Ввод на основании", "input_based_on.md"),
-    ("Расширения", "extensions.md"),
-    ("Печатные формы", "printed_forms.md"),
-    ("Префикс и комментарии", "prefix_comments.md"),
-    ("Принципы эффективной разработки", OrderedDict([
-        ("Обзор", "principles/README.md"),
-        ("KISS — Делай проще", "principles/kiss.md"),
-        ("DRY — Не повторяйся", "principles/dry.md"),
-        ("YAGNI — Вам это не понадобится", "principles/yagni.md"),
-        ("SOLID", "principles/solid.md"),
-        ("Архитектура 1С-решений", "principles/architecture.md"),
-    ])),
-    ("Метаданные", OrderedDict([
-        ("Общие модули", "metadata/common_modules.md"),
-        ("Справочники", "metadata/catalogs.md"),
-        ("Документы", "metadata/documents.md"),
-        ("Регистры накопления", "metadata/accumulation_registers.md"),
-        ("Регистры сведений", "metadata/information_registers.md"),
-        ("Подсистемы", "metadata/subsystem.md"),
-        ("Отчеты", "metadata/reports.md"),
-        ("Роли", "metadata/roles.md"),
-        ("Подписки на события", "metadata/event_subscriptions.md"),
-        ("Регламентные задания", "metadata/scheduled_jobs.md"),
-    ])),
-    ("Система управления версиями", OrderedDict([
-        ("Обзор", "version-control/README.md"),
-        ("Хранилище 1С", "version-control/1c-storage/README.md"),
-        ("Работа с Git", OrderedDict([
-            ("Обзор", "version-control/git/README.md"),
-            ("Основные команды Git", "version-control/git/commands.md"),
-            ("Настройка SSH ключей", "version-control/git/ssh.md"),
-            ("Git Flow", "version-control/git/gitflow.md"),
-            ("Настройка исключений Git", "version-control/git/gitignore.md"),
-            ("Настройка атрибутов Git", "version-control/git/gitattributes.md"),
-            ("Git LFS", "version-control/git/lfs.md"),
-            ("Подмодули Git", "version-control/git/submodules.md"),
-        ])),
-    ])),
-    ("Среды разработки", OrderedDict([
-        ("Обзор", "ide/README.md"),
-        ("Phoenix BSL", "ide/phoenix-bsl.md"),
-        ("Visual Studio Code", "ide/vscode.md"),
-        ("1С:EDT", "ide/edt.md"),
-    ])),
-    ("DevOps", OrderedDict([
-        ("Обзор", "cicd/README.md"),
-        ("Code-review", "cicd/code-review/README.md"),
-        ("Конвейеры CI/CD", OrderedDict([
-            ("Обзор", "cicd/pipelines/README.md"),
-            ("Профиль Jenkins", "cicd/pipelines/jenkins-pipeline-profile.md"),
-            ("Профиль GitLab CI", "cicd/pipelines/gitlab-ci-pipeline-profile.md"),
-        ])),
-        ("Тестирование", OrderedDict([
-            ("Обзор", "cicd/testing/README.md"),
-            ("Стратегия тестирования", "cicd/testing/automation-strategy.md"),
-            ("Инициализация тестовой ИБ", "cicd/testing/data-initialization.md"),
-            ("Чек-лист ЗУП", "cicd/testing/hrm-checklist.md"),
-        ])),
-        ("Доставка и развертывание", "cicd/delivery/README.md"),
-        ("SonarQube", "cicd/sonar/README.md"),
-    ])),
-    ("Интеграции", OrderedDict([
-        ("Обзор", "integrations/README.md"),
-        ("Брокеры сообщений", OrderedDict([
-            ("Обзор", "integrations/messaging/README.md"),
-            ("RabbitMQ", OrderedDict([
-                ("Обзор", "integrations/messaging/rabbitmq/README.md"),
-                ("Основные концепции", "integrations/messaging/rabbitmq/concepts.md"),
-                ("Регламент именования", "integrations/messaging/rabbitmq/naming.md"),
-                ("БИТ.Адаптер", "integrations/messaging/rabbitmq/bit-adapter/README.md"),
-            ])),
-            ("Apache Kafka", "integrations/messaging/kafka/README.md"),
-        ])),
-    ])),
-    ("Руководства пользователя", OrderedDict([
-        ("Обзор", "manuals/README.md"),
-        ("Окружения", "manuals/environments.md"),
-        ("Пользователи", "manuals/users.md"),
-        ("Обновление конфигураций", "manuals/update_regulations.md"),
-        ("Жизненный цикл задачи", "manuals/task-lifecycle.md"),
-    ])),
-    ("Глоссарий терминов", "glossary.md"),
-])
-# END_BLOCK_CHAPTERS
 
 # START_BLOCK_MODULE_ID_MAP
 _MODULE_ID_SPECIAL = {

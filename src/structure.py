@@ -1,45 +1,44 @@
 # FILE: src/structure.py
-# VERSION: 1.0.0
+# VERSION: 1.0.1
 # START_MODULE_CONTRACT
-#   PURPOSE: Определение иерархии глав и сборка плоского списка для генерации
-#   SCOPE: collect_chapters
-#   DEPENDS: M-CONFIG (CHAPTERS)
+#   PURPOSE: Определение иерархии глав через динамическое обнаружение или knowledge-graph.xml
+#   SCOPE: collect_chapters, chapters_from_discovery, chapters_from_graph
+#   DEPENDS: M-DISCOVERY, M-GRAPHSYNC
 #   LINKS: M-STRUCTURE
 #   ROLE: RUNTIME
 #   MAP_MODE: EXPORTS
 # END_MODULE_CONTRACT
 #
 # START_MODULE_MAP
-#   collect_chapters - рекурсивно собрать плоский список глав из OrderedDict
+#   collect_chapters - получить плоский список глав (из графа → fallback discovery)
 # END_MODULE_MAP
 
-from src.config import CHAPTERS
+from src.discovery import scan_docs_directory, flatten_chapters
+from src.graph_sync import chapters_from_graph
+from src.config import derive_module_id
 
 
 # START_BLOCK_COLLECT_FLAT
-def collect_chapters(chapters_dict=None, depth=0, parent_id=None, parent_heading=None):
-    """Собрать плоский список глав для генерации из иерархического словаря."""
-    if chapters_dict is None:
-        chapters_dict = CHAPTERS
-    result = []
-    for heading, source in chapters_dict.items():
-        if isinstance(source, str):
-            result.append({
-                "heading": heading,
-                "source": source,
-                "depth": depth,
-                "parent_id": parent_id,
-                "parent_heading": parent_heading,
-            })
-        elif isinstance(source, dict):
-            result.append({
-                "heading": heading,
-                "source": None,
-                "depth": depth,
-                "parent_id": parent_id,
-                "parent_heading": parent_heading,
-                "is_container": True,
-            })
-            result.extend(collect_chapters(source, depth + 1, parent_id=heading, parent_heading=heading))
-    return result
+def collect_chapters(use_graph=True):
+    """Собрать плоский список глав для генерации.
+
+    Priority:
+    1. Если use_graph=True — попробовать прочитать из knowledge-graph.xml
+    2. Fallback — динамическое сканирование файловой системы docs/
+    """
+    if use_graph:
+        graph_chapters = chapters_from_graph()
+        if graph_chapters:
+            return graph_chapters
+
+    nodes = scan_docs_directory()
+    flat = flatten_chapters(nodes)
+
+    existing_ids = set()
+    for ch in flat:
+        mid = derive_module_id(ch["heading"], existing_ids)
+        existing_ids.add(mid)
+        ch["module_id"] = mid
+
+    return flat
 # END_BLOCK_COLLECT_FLAT

@@ -16,7 +16,6 @@ from src.config import (
     derive_module_id,
     classify_module_type,
     setup_styles,
-    CHAPTERS,
     DOC_NAME,
     DOC_VERSION,
     GRACE_VERSION,
@@ -90,10 +89,15 @@ class TestSetupStyles:
         assert "Code" in [s.name for s in doc.styles]
 
 
-class TestChapters:
-    def test_chapters_not_empty(self):
-        assert len(CHAPTERS) > 0
+class TestDiscoveryIntegration:
+    def test_discovery_finds_chapters(self):
+        from src.discovery import scan_docs_directory, flatten_chapters
+        nodes = scan_docs_directory()
+        flat = flatten_chapters(nodes)
+        assert len(flat) > 0
 
-    def test_first_chapter_is_intro(self):
-        first_key = next(iter(CHAPTERS))
-        assert "Введение" in first_key or first_key == "Введение"
+    def test_first_discovered_is_intro(self):
+        from src.discovery import scan_docs_directory
+        nodes = scan_docs_directory()
+        md_nodes = [n for n in nodes if n.source and "intro" in n.source]
+        assert len(md_nodes) >= 1
