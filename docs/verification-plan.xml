@@ -22,7 +22,7 @@
     <MatrixRow module="M-CONFIG" scenario="classify-prose" type="D" contract="classify_module_type returns NARRATIVE for prose" />
     <MatrixRow module="M-CONFIG" scenario="classify-table" type="D" contract="classify_module_type returns DATA for tables" />
     <MatrixRow module="M-CONFIG" scenario="classify-mixed" type="D" contract="classify_module_type returns MIXED" />
-    <MatrixRow module="M-CONFIG" scenario="setup-styles" type="D" contract="setup_styles creates Code style and configures headings" />
+    <MatrixRow module="M-CONFIG" scenario="setup-styles" type="D" contract="setup_styles creates Code style (Courier New 8pt) and configures headings" />
     <MatrixRow module="M-PARSER" scenario="frontmatter-strip" type="D" contract="strip_frontmatter removes YAML block" />
     <MatrixRow module="M-PARSER" scenario="frontmatter-title" type="D" contract="get_frontmatter_title extracts title" />
     <MatrixRow module="M-PARSER" scenario="read-md-existing" type="D" contract="read_md returns (title, text) for existing file" />
@@ -45,7 +45,7 @@
     <MatrixRow module="M-GRAPHSYNC" scenario="sync-roundtrip" type="T" contract="sync_graph_from_fs writes and chapters_from_graph reads back same count" />
     <MatrixRow module="M-GRAPHSYNC" scenario="build-grace-graph" type="D" contract="build_grace_graph_xml produces valid XML" />
     <MatrixRow module="M-RENDERER" scenario="render-table" type="D" contract="HTML table renders with correct rows and cols" />
-    <MatrixRow module="M-RENDERER" scenario="render-code" type="D" contract="Code block renders monospace" />
+    <MatrixRow module="M-RENDERER" scenario="render-code" type="D" contract="Code block renders monospace Courier New 8pt" />
     <MatrixRow module="M-RENDERER" scenario="render-paragraph" type="D" contract="Inline styles (bold, italic, code, links) preserved" />
     <MatrixRow module="M-RENDERER" scenario="render-list" type="D" contract="Ordered and unordered lists with nesting" />
     <MatrixRow module="M-RENDERER" scenario="render-empty-table" type="D" contract="Empty table does not crash" />
@@ -56,6 +56,11 @@
     <MatrixRow module="M-RENDERER" scenario="render-image-subdirectory" type="D" contract="Image in docs/principles/img/ resolved relative to chapter parent dir" />
     <MatrixRow module="M-RENDERER" scenario="ol-restart-numbering" type="D" contract="Two separate ol elements restart at 1 — no continuous numbering" />
     <MatrixRow module="M-RENDERER" scenario="ol-explicit-text" type="D" contract="ol li items use explicit number prefix (1. 2. ) not List Number style" />
+    <MatrixRow module="M-RENDERER" scenario="internal-link-to-bookmark" type="D" contract="a href=./metadata/roles.md → w:hyperlink w:anchor=GRACE_M-ROLES" />
+    <MatrixRow module="M-RENDERER" scenario="internal-link-not-found" type="D" contract="a href=./nonexistent.md → styled text, no crash" />
+    <MatrixRow module="M-RENDERER" scenario="external-link-unchanged" type="D" contract="a href=https://... → w:hyperlink r:id=rId (no regression)" />
+    <MatrixRow module="M-RENDERER" scenario="bookmark-map-completeness" type="D" contract="bookmark_map contains entry for every module with non-empty rel_path" />
+    <MatrixRow module="M-RENDERER" scenario="internal-link-relative-from-subdir" type="D" contract="a href=../begin.md from cicd/README.md resolves via chapter_rel_path" />
     <MatrixRow module="M-GRACE" scenario="manifest-valid-xml" type="D" contract="make_grace_manifest produces well-formed XML" />
     <MatrixRow module="M-GRACE" scenario="instructions-valid-xml" type="D" contract="make_grace_instructions produces well-formed XML" />
     <MatrixRow module="M-GRACE" scenario="contracts-valid-xml" type="D" contract="make_grace_contracts produces well-formed XML" />
@@ -125,7 +130,7 @@
 
     <VF-006 NAME="RendererHtmlToDocx" USE_CASES="UC-001 UC-005" DATA_FLOW="DF-001" PRIORITY="high">
       <scenario>HTML таблицы, код, списки, параграфы рендерятся в docx корректно</scenario>
-      <expected-outcome>Таблицы с правильным числом строк/столбцов; код моноширинным; списки с вложенностью</expected-outcome>
+      <expected-outcome>Таблицы с правильным числом строк/столбцов; код моноширинным Courier New 8pt; списки с вложенностью</expected-outcome>
       <required-signals>
         <log-marker>[Renderer][render_table][BLOCK_RENDER_TABLE]</log-marker>
         <log-marker>[Renderer][render_paragraph][BLOCK_RENDER_PARAGRAPH]</log-marker>
@@ -154,12 +159,22 @@
 
     <VF-009 NAME="ListNumberingRestart" USE_CASES="UC-001 UC-005" DATA_FLOW="DF-001" PRIORITY="high">
       <scenario>Нумерованные списки перезапускаются для каждого нового ol — нет сквозной нумерации</scenario>
-      <expected-outcome>layout.md «Имена методов» содержит два ol: 1-4, затем 1-2 — без чисел 36-43</expected-outout>
+      <expected-outcome>layout.md «Имена методов» содержит два ol: 1-4, затем 1-2 — без чисел 36-43</expected-outcome>
       <required-signals>
         <log-marker>[Renderer][render_list][BLOCK_RENDER_LIST]</log-marker>
       </required-signals>
       <evidence-type>deterministic</evidence-type>
     </VF-009>
+
+    <VF-010 NAME="InternalCrossReferences" USE_CASES="UC-001" DATA_FLOW="DF-006" PRIORITY="high">
+      <scenario>Внутренние ссылки на .md файлы → Word internal hyperlinks на GRACE-закладки</scenario>
+      <expected-outcome>~146 внутренних ссылок становятся кликабельными w:hyperlink w:anchor=GRACE_M-XXX; неизвестные пути → styled text fallback</expected-outcome>
+      <required-signals>
+        <log-marker>[Renderer][render_paragraph][BLOCK_RENDER_LINK] mode=anchor</log-marker>
+        <log-marker>[Renderer][render_paragraph][BLOCK_RENDER_LINK] mode=styled</log-marker>
+      </required-signals>
+      <evidence-type>deterministic</evidence-type>
+    </VF-010>
   </CriticalFlows>
 
   <ModuleVerification>
@@ -207,7 +222,7 @@
         <scenario-4 kind="success">classify_module_type: NARRATIVE для prose-only</scenario-4>
         <scenario-5 kind="success">classify_module_type: DATA для table-only</scenario-5>
         <scenario-6 kind="success">classify_module_type: MIXED для table+code+prose</scenario-6>
-        <scenario-7 kind="success">setup_styles создаёт Code style и настраивает Heading 1-4</scenario-7>
+        <scenario-7 kind="success">setup_styles создаёт Code style (Courier New 8pt) и настраивает Heading 1-4</scenario-7>
       </scenarios>
       <required-log-markers>
         <marker-1>[Config][derive_module_id][BLOCK_DERIVE_ID]</marker-1>
@@ -372,7 +387,7 @@
       </module-checks>
       <scenarios>
         <scenario-1 kind="success">HTML-таблица рендерится в Word-таблицу с правильным числом строк и столбцов</scenario-1>
-        <scenario-2 kind="success">Код-блок рендерится моноширинным шрифтом</scenario-2>
+        <scenario-2 kind="success">Код-блок рендерится моноширинным шрифтом Courier New 8pt</scenario-2>
         <scenario-3 kind="success">Параграф с inline стилями: bold, italic, code, link</scenario-3>
         <scenario-4 kind="success">Нумерованный и ненумерованный список с вложенностью</scenario-4>
         <scenario-5 kind="failure">Пустая таблица не вызывает ошибку</scenario-5>
@@ -383,16 +398,21 @@
         <scenario-10 kind="failure">Отсутствующее изображение → параграф-плейсхолдер [Image: src] + warning</scenario-10>
         <scenario-11 kind="success">Изображение из подкаталога (docs/principles/img/) найдено через img_base_dir</scenario-11>
         <scenario-12 kind="success">Два отдельных ol перезапускают нумерацию с 1 (нет сквозной)</scenario-12>
-        <scenario-13 kind="success">ol элементы используют явный текст числа ("1. ") + Normal стиль, НЕ List Number</scenario-13>
+        <scenario-13 kind="success">ol элементы используют явный текст числа ("1. ") + Normal стиль, НЕ List Number; inline code использует Courier New 8pt</scenario-13>
+        <scenario-14 kind="success">Internal link a href=./metadata/roles.md → w:hyperlink w:anchor=GRACE_M-ROLES при передаче bookmark_map</scenario-14>
+        <scenario-15 kind="success">Internal link на неизвестный путь → styled text (синий + подчёркивание), no crash</scenario-15>
+        <scenario-16 kind="success">External link https://example.com → w:hyperlink r:id (no regression)</scenario-16>
+        <scenario-17 kind="success">Internal link ../begin.md из вложенного каталога разрешается через chapter_rel_path</scenario-17>
       </scenarios>
       <required-log-markers>
         <marker-1>[Renderer][render_table][BLOCK_RENDER_TABLE]</marker-1>
         <marker-2>[Renderer][render_html_to_doc][BLOCK_RENDER_HTML]</marker-2>
         <marker-3>[Renderer][render_image][BLOCK_RENDER_IMAGE]</marker-3>
+        <marker-4>[Renderer][render_paragraph][BLOCK_RENDER_LINK]</marker-4>
       </required-log-markers>
       <required-trace-assertions>
         <assertion-1>Таблица имеет table.rows == expected и table.columns == expected</assertion-1>
-        <assertion-2>Code paragraphs используют style "Code"</assertion-2>
+        <assertion-2>Code paragraphs используют style "Code" с font.name="Courier New", font.size=Pt(8)</assertion-2>
         <assertion-3>render_image вызывает doc.add_picture для существующего файла</assertion-3>
         <assertion-4>ol нумерация перезапускается для каждого нового ol элемента</assertion-4>
       </required-trace-assertions>

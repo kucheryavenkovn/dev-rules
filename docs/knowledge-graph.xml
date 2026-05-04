@@ -25,6 +25,7 @@
         <fn-setup_styles PURPOSE="Настроить стили документа Word"/>
         <fn-derive_module_id PURPOSE="Генерация уникального Module ID из заголовка"/>
         <fn-classify_module_type PURPOSE="Определить тип модуля GRACE по HTML-содержимому"/>
+        <fn-make_bookmark_name PURPOSE="Конструировать имя GRACE-закладки из module_id"/>
       </annotations>
     </M-CONFIG>
 
@@ -78,16 +79,18 @@
     </M-GRAPHSYNC>
 
     <M-RENDERER NAME="DocxRenderer" TYPE="CORE_LOGIC" STATUS="done">
-      <purpose>Рендеринг HTML-контента в параграфы, таблицы, списки, код и изображения docx</purpose>
+      <purpose>Рендеринг HTML-контента в параграфы, таблицы, списки, код и изображения docx; внутренние cross-references через GRACE-закладки</purpose>
       <path>src/renderer.py</path>
       <depends>M-CONFIG, M-TYPES</depends>
       <verification-ref>V-M-RENDERER</verification-ref>
       <annotations>
-        <fn-render_html_to_doc PURPOSE="Главная функция рендеринга HTML → docx"/>
-        <fn-render_paragraph PURPOSE="Рендеринг HTML параграфа с inline-стилями"/>
+        <fn-render_html_to_doc PURPOSE="Главная функция рендеринга HTML → docx; принимает bookmark_map и chapter_rel_path"/>
+        <fn-render_paragraph PURPOSE="Рендеринг HTML параграфа с inline-стилями и внутренними ссылками"/>
         <fn-render_table PURPOSE="Рендеринг HTML таблицы в Word таблицу"/>
         <fn-render_list PURPOSE="Рендеринг HTML списка с вложенностью и перезапуском нумерации"/>
         <fn-render_image PURPOSE="Встраивание изображения из docs/ в docx через doc.add_picture"/>
+        <fn-_resolve_internal_link PURPOSE="Разрешить .md href → GRACE bookmark name через bookmark_map"/>
+        <fn-_add_hyperlink PURPOSE="Создать w:hyperlink с r:id (external) или w:anchor (internal)"/>
       </annotations>
     </M-RENDERER>
 

@@ -61,7 +61,7 @@
         </errors>
       </contract>
       <interface>
-        <export-setup_styles PURPOSE="Настроить стили документа Word" />
+         <export-setup_styles PURPOSE="Настроить стили документа Word (Code style: Courier New 8pt)" />
         <export-derive_module_id PURPOSE="Генерация Module ID из заголовка" />
         <export-classify_module_type PURPOSE="Классификация типа модуля" />
       </interface>
@@ -77,6 +77,7 @@
       <verification-ref>V-M-CONFIG</verification-ref>
       <notes>
         <note-1>Маппинг Module ID критичен — должен быть детерминистическим и без коллизий.</note-1>
+        <note-2>Code style: Courier New 8pt для блоков кода и inline code.</note-2>
       </notes>
     </M-CONFIG>
 
@@ -243,7 +244,7 @@
       </contract>
       <interface>
         <export-render_html_to_doc PURPOSE="Главная точка входа рендеринга" />
-        <export-render_paragraph PURPOSE="Рендеринг параграфа с inline-стилями" />
+         <export-render_paragraph PURPOSE="Рендеринг параграфа с inline-стилями (inline code: Courier New 8pt)" />
         <export-render_table PURPOSE="Рендеринг таблицы" />
         <export-render_list PURPOSE="Рендеринг списка с перезапуском нумерации для каждого ol" />
         <export-render_image PURPOSE="Встраивание изображения из docs/ в docx" />
@@ -264,6 +265,7 @@
         <note-1>Таблицы — самая сложная часть: нужно корректно определять заголовки и данные.</note-1>
         <note-2>Нумерованные списки: использовать явный текст числа ("1. ", "2. ") + стиль Normal с отступом, НЕ List Number — Word ведёт сквозную нумерацию через весь документ.</note-2>
         <note-3>Изображения: img src разрешается относительно chapter_rel_path внутри img_base_dir. Если файл не найден — вставить параграф-плейсхолдер [Image: src] с предупреждением в лог.</note-3>
+        <note-4>Код-блоки (<pre>) используют Code style (Courier New 8pt). Inline <code> тоже Courier New 8pt.</note-4>
       </notes>
     </M-RENDERER>
 
@@ -432,6 +434,15 @@
       <evidence>Отчёт: все инварианты пройдены / список нарушений</evidence>
     </DF-004>
 
+    <DF-006 NAME="InternalCrossReference" TRIGGER="Renderer встречает ссылку на .md файл">
+      <step-1>M-DOCXBUILDER строит bookmark_map = {ch.rel_path: "GRACE_" + ch.module_id} для всех глав</step-1>
+      <step-2>M-DOCXBUILDER передаёт bookmark_map и chapter_rel_path через render_html_to_doc → render_paragraph</step-2>
+      <step-3>render_paragraph видит a href не http → _resolve_internal_link(href, bookmark_map, chapter_rel_path)</step-3>
+      <step-4>Если найден → _add_hyperlink(anchor="GRACE_M-ROLES") — Word internal hyperlink</step-4>
+      <step-5>Если не найден → styled text (синий + подчёркивание) — fallback</step-5>
+      <evidence>w:hyperlink w:anchor="GRACE_M-ROLES" в document.xml; log: [Renderer][render_paragraph][BLOCK_RENDER_LINK]</evidence>
+    </DF-006>
+
     <DF-005 NAME="SidebarConsistency" TRIGGER="M-SIDEBAR строит порядок глав">
       <step-1>M-DISCOVERY сканирует docs/ и строит дерево ChapterNode</step-1>
       <step-2>M-SIDEBAR сортирует по sidebar_position из front matter и _category_.json</step-2>
@@ -464,6 +475,13 @@
       <step-2 module="M-DOCXBUILDER" status="done" verification="V-M-DOCXBUILDER">Переписать src/main.py — заменить OrderedDict на M-SIDEBAR</step-2>
       <step-3 module="M-DOCXBUILDER" status="done" verification="V-M-DOCXBUILDER">Сквозной тест: Markdown → GRACE .docx → валидация</step-3>
     </Phase-3>
+
+    <Phase-4 name="Internal Cross-References: clickable .md links via Word bookmarks" status="done">
+      <goal>146 внутренних ссылок [text](path/to/file.md) → Word internal hyperlinks на GRACE-закладки</goal>
+      <step-1 module="M-RENDERER" status="done" verification="V-M-RENDERER">Добавить chapter_rel_path в render_html_to_doc, передать в render_paragraph для разрешения относительных внутренних ссылок</step-1>
+      <step-2 module="M-DOCXBUILDER" status="done" verification="V-M-DOCXBUILDER">Построить bookmark_map={rel_path: GRACE_module_id}, передать в render_html_to_doc с chapter_rel_path</step-2>
+      <step-3 module="M-RENDERER" status="done" verification="V-M-RENDERER">Тесты: internal link → anchor, not found → styled, external unchanged, bookmark_map completeness</step-3>
+    </Phase-4>
   </ImplementationOrder>
 
   <ExecutionPolicy>
