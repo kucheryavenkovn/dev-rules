@@ -4,7 +4,7 @@
     <keywords>1C, BSL, Word, docx, GRACE, markdown, documentation, standards, code-style, CI/CD, Git, RabbitMQ, Docusaurus, XML, semantic-markup</keywords>
     <annotation>Генератор Word-документа «Стандарты разработки» с GRACE-DOCX v3 семантической разметкой. Порядок глав определяется Docusaurus sidebar auto-generation.</annotation>
 
-    <M-TYPES NAME="Types" TYPE="UTILITY" STATUS="planned">
+    <M-TYPES NAME="Types" TYPE="UTILITY" STATUS="done">
       <purpose>Общие frozen dataclass-типы для всех модулей: ChapterInfo, ModuleInfo, GraceModule</purpose>
       <path>src/types.py</path>
       <depends>none</depends>
@@ -55,7 +55,7 @@
       </annotations>
     </M-DISCOVERY>
 
-    <M-SIDEBAR NAME="SidebarOrder" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-SIDEBAR NAME="SidebarOrder" TYPE="CORE_LOGIC" STATUS="done">
       <purpose>Построение авторитетного порядка глав, идентичного Docusaurus sidebar auto-generation</purpose>
       <path>src/sidebar_order.py</path>
       <depends>M-CONFIG, M-DISCOVERY, M-TYPES</depends>
@@ -77,8 +77,8 @@
       </annotations>
     </M-GRAPHSYNC>
 
-    <M-RENDERER NAME="DocxRenderer" TYPE="CORE_LOGIC" STATUS="planned">
-      <purpose>Рендеринг HTML-контента в параграфы, таблицы, списки и код docx</purpose>
+    <M-RENDERER NAME="DocxRenderer" TYPE="CORE_LOGIC" STATUS="done">
+      <purpose>Рендеринг HTML-контента в параграфы, таблицы, списки, код и изображения docx</purpose>
       <path>src/renderer.py</path>
       <depends>M-CONFIG, M-TYPES</depends>
       <verification-ref>V-M-RENDERER</verification-ref>
@@ -86,11 +86,12 @@
         <fn-render_html_to_doc PURPOSE="Главная функция рендеринга HTML → docx"/>
         <fn-render_paragraph PURPOSE="Рендеринг HTML параграфа с inline-стилями"/>
         <fn-render_table PURPOSE="Рендеринг HTML таблицы в Word таблицу"/>
-        <fn-render_list PURPOSE="Рендеринг HTML списка с вложенностью"/>
+        <fn-render_list PURPOSE="Рендеринг HTML списка с вложенностью и перезапуском нумерации"/>
+        <fn-render_image PURPOSE="Встраивание изображения из docs/ в docx через doc.add_picture"/>
       </annotations>
     </M-RENDERER>
 
-    <M-GRACE NAME="GraceInjector" TYPE="CORE_LOGIC" STATUS="planned">
+    <M-GRACE NAME="GraceInjector" TYPE="CORE_LOGIC" STATUS="done">
       <purpose>Инъекция 5 GRACE XML-частей и парных закладок в .docx архив</purpose>
       <path>src/grace_injector.py</path>
       <depends>M-CONFIG, M-DISCOVERY, M-TYPES</depends>
@@ -119,7 +120,7 @@
       </annotations>
     </M-VALIDATOR>
 
-    <M-DOCXBUILDER NAME="DocumentBuilder" TYPE="ENTRY_POINT" STATUS="planned">
+    <M-DOCXBUILDER NAME="DocumentBuilder" TYPE="ENTRY_POINT" STATUS="done">
       <purpose>Сборка полного документа через Docusaurus-first ordering: титульная страница, оглавление, главы</purpose>
       <path>src/main.py</path>
       <depends>M-CONFIG, M-PARSER, M-RENDERER, M-SIDEBAR, M-DISCOVERY, M-GRAPHSYNC, M-GRACE, M-VALIDATOR, M-TYPES</depends>

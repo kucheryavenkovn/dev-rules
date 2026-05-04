@@ -223,12 +223,14 @@
 
     <M-RENDERER NAME="DocxRenderer" TYPE="CORE_LOGIC" LAYER="1" ORDER="2" STATUS="planned">
       <contract>
-        <purpose>Рендеринг HTML в элементы docx: параграфы, таблицы, списки, код, blockquote</purpose>
-        <scope>render_html_to_doc, render_paragraph, render_table, render_list, render_blockquote</scope>
+        <purpose>Рендеринг HTML в элементы docx: параграфы, таблицы, списки, код, blockquote, изображения</purpose>
+        <scope>render_html_to_doc, render_paragraph, render_table, render_list, render_blockquote, render_image</scope>
         <inputs>
           <param name="doc" type="Document" />
           <param name="html_content" type="str" />
           <param name="depth_offset" type="int" />
+          <param name="chapter_rel_path" type="str" />
+          <param name="img_base_dir" type="Path" />
         </inputs>
         <outputs>
           <param name="modified doc" type="Document" />
@@ -236,13 +238,15 @@
         <errors>
           <error code="TABLE_PARSE_ERROR">Некорректная HTML-таблица</error>
           <error code="RENDER_DEPTH_EXCEEDED">Рекурсия div/section превысила лимит 5</error>
+          <error code="IMAGE_NOT_FOUND">Файл изображения не найден по указанному пути</error>
         </errors>
       </contract>
       <interface>
         <export-render_html_to_doc PURPOSE="Главная точка входа рендеринга" />
         <export-render_paragraph PURPOSE="Рендеринг параграфа с inline-стилями" />
         <export-render_table PURPOSE="Рендеринг таблицы" />
-        <export-render_list PURPOSE="Рендеринг списка с вложенностью" />
+        <export-render_list PURPOSE="Рендеринг списка с перезапуском нумерации для каждого ol" />
+        <export-render_image PURPOSE="Встраивание изображения из docs/ в docx" />
       </interface>
       <depends>M-CONFIG, M-TYPES</depends>
       <target>
@@ -253,10 +257,13 @@
         <log-prefix>[Renderer]</log-prefix>
         <critical-block>BLOCK_RENDER_TABLE</critical-block>
         <critical-block>BLOCK_RENDER_HTML</critical-block>
+        <critical-block>BLOCK_RENDER_IMAGE</critical-block>
       </observability>
       <verification-ref>V-M-RENDERER</verification-ref>
       <notes>
         <note-1>Таблицы — самая сложная часть: нужно корректно определять заголовки и данные.</note-1>
+        <note-2>Нумерованные списки: использовать явный текст числа ("1. ", "2. ") + стиль Normal с отступом, НЕ List Number — Word ведёт сквозную нумерацию через весь документ.</note-2>
+        <note-3>Изображения: img src разрешается относительно chapter_rel_path внутри img_base_dir. Если файл не найден — вставить параграф-плейсхолдер [Image: src] с предупреждением в лог.</note-3>
       </notes>
     </M-RENDERER>
 
@@ -374,6 +381,7 @@
       <notes>
         <note-1>Титульная страница — 6 пустых параграфов + центрированный заголовок.</note-1>
         <note-2>Порядок глав полностью определяется M-SIDEBAR — нет hardcoded OrderedDict.</note-2>
+        <note-3>При рендеринге глав передаёт chapter_rel_path и img_base_dir (DOCS_DIR / chapter_parent_dir) в M-RENDERER для встраивания изображений.</note-3>
       </notes>
     </M-DOCXBUILDER>
   </Modules>
@@ -385,7 +393,7 @@
       <step-3>M-GRAPHSYNC синхронизирует knowledge-graph.xml с обнаруженными главами</step-3>
       <step-4>M-DOCXBUILDER создаёт пустой Document, настраивает стили через M-CONFIG</step-4>
       <step-5>M-DOCXBUILDER генерирует титульную страницу и оглавление</step-5>
-      <step-6>Для каждой главы: M-PARSER читает .md → M-RENDERER рендерит HTML в docx</step-6>
+      <step-6>Для каждой главы: M-PARSER читает .md → M-RENDERER рендерит HTML в docx (передаёт chapter_rel_path и img_base_dir для изображений)</step-6>
       <step-7>M-DOCXBUILDER вставляет GRACE-закладки для каждого раздела</step-7>
       <step-8>M-DOCXBUILDER сохраняет базовый .docx</step-8>
       <step-9>M-GRACE распаковывает .docx, инъектирует 5 XML-частей, обновляет Content_Types и rels</step-9>
@@ -434,27 +442,27 @@
   </DataFlow>
 
   <ImplementationOrder>
-    <Phase-1 name="Foundation: types, config, parser, sidebar, discovery" status="planned">
+    <Phase-1 name="Foundation: types, config, parser, sidebar, discovery" status="done">
       <goal>Выделить общие типы, настроить конфигурацию, парсинг, определение порядка sidebar и сканирование файловой системы</goal>
-      <step-1 module="M-TYPES" status="pending" verification="V-M-TYPES">Создать src/types.py с frozen dataclasses: ChapterInfo, ModuleInfo, GraceModule</step-1>
+      <step-1 module="M-TYPES" status="done" verification="V-M-TYPES">Создать src/types.py с frozen dataclasses: ChapterInfo, ModuleInfo, GraceModule</step-1>
       <step-2 module="M-CONFIG" status="done" verification="V-M-CONFIG">Обновить src/config.py — добавить зависимость от M-TYPES</step-2>
       <step-3 module="M-PARSER" status="done" verification="V-M-PARSER">Обновить src/parser.py — использовать M-TYPES при необходимости</step-3>
       <step-4 module="M-DISCOVERY" status="done" verification="V-M-DISCOVERY">Обновить src/discovery.py — использовать ChapterInfo из M-TYPES</step-4>
-      <step-5 module="M-SIDEBAR" status="pending" verification="V-M-SIDEBAR">Создать src/sidebar_order.py — build_chapter_order через M-DISCOVERY</step-5>
+      <step-5 module="M-SIDEBAR" status="done" verification="V-M-SIDEBAR">Создать src/sidebar_order.py — build_chapter_order через M-DISCOVERY</step-5>
     </Phase-1>
 
-    <Phase-2 name="Integration: graph sync, renderer, GRACE injector" status="planned">
+    <Phase-2 name="Integration: graph sync, renderer, GRACE injector" status="done">
       <goal>Интеграция графа, улучшенный рендеринг, GRACE-инъекция с element inventory</goal>
       <step-1 module="M-GRAPHSYNC" status="done" verification="V-M-GRAPHSYNC">Обновить src/graph_sync.py — использовать M-SIDEBAR для порядка</step-1>
-      <step-2 module="M-RENDERER" status="pending" verification="V-M-RENDERER">Улучшить рендеринг таблиц, кода, изображений в src/renderer.py</step-2>
-      <step-3 module="M-GRACE" status="pending" verification="V-M-GRACE">Обновить src/grace_injector.py — использовать M-TYPES, добавить element inventory</step-3>
+      <step-2 module="M-RENDERER" status="done" verification="V-M-RENDERER">Улучшить рендеринг таблиц, кода, изображений в src/renderer.py; исправить нумерацию списков (явный текст числа вместо List Number); добавить render_image</step-2>
+      <step-3 module="M-GRACE" status="done" verification="V-M-GRACE">Обновить src/grace_injector.py — использовать M-TYPES, добавить element inventory</step-3>
     </Phase-2>
 
-    <Phase-3 name="Assembly: document builder, validator, integration tests" status="planned">
+    <Phase-3 name="Assembly: document builder, validator, integration tests" status="done">
       <goal>Полная сборка документа через новую архитектуру, валидация и регрессия</goal>
       <step-1 module="M-VALIDATOR" status="done" verification="V-M-VALIDATOR">Обновить src/validator.py — использовать M-TYPES</step-1>
-      <step-2 module="M-DOCXBUILDER" status="pending" verification="V-M-DOCXBUILDER">Переписать src/main.py — заменить OrderedDict на M-SIDEBAR</step-2>
-      <step-3 module="M-DOCXBUILDER" status="pending" verification="V-M-DOCXBUILDER">Сквозной тест: Markdown → GRACE .docx → валидация</step-3>
+      <step-2 module="M-DOCXBUILDER" status="done" verification="V-M-DOCXBUILDER">Переписать src/main.py — заменить OrderedDict на M-SIDEBAR</step-2>
+      <step-3 module="M-DOCXBUILDER" status="done" verification="V-M-DOCXBUILDER">Сквозной тест: Markdown → GRACE .docx → валидация</step-3>
     </Phase-3>
   </ImplementationOrder>
 
