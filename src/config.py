@@ -1,5 +1,5 @@
 # FILE: src/config.py
-# VERSION: 1.0.0
+# VERSION: 1.0.1
 # START_MODULE_CONTRACT
 #   PURPOSE: Конфигурация генератора: пути, версия документа, стили Word, маппинг заголовков → Module ID
 #   SCOPE: derive_module_id, classify_module_type, setup_styles, константы путей
@@ -195,10 +195,17 @@ def setup_styles(doc):
 
     if "Code" not in [s.name for s in doc.styles]:
         cs = doc.styles.add_style("Code", WD_STYLE_TYPE.PARAGRAPH)
-        cs.font.name = "Consolas"
-        cs.font.size = Pt(9)
+        cs.font.name = "Courier New"
+        cs.font.size = Pt(8)
         cs.font.color.rgb = RGBColor(0x2D, 0x2D, 0x2D)
         cs.paragraph_format.space_before = Pt(2)
         cs.paragraph_format.space_after = Pt(2)
         cs.paragraph_format.left_indent = Cm(0.5)
 # END_BLOCK_SETUP_STYLES
+
+
+# START_BLOCK_BOOKMARK_NAME
+def make_bookmark_name(module_id):
+    """Конструировать имя GRACE-закладки из module_id."""
+    return f"GRACE_{module_id}"
+# END_BLOCK_BOOKMARK_NAME

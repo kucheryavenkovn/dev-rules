@@ -1,5 +1,5 @@
 # FILE: src/parser.py
-# VERSION: 1.0.0
+# VERSION: 1.1.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Чтение Markdown-файлов из docs/ и конвертация в HTML
 #   SCOPE: read_md, strip_frontmatter, get_frontmatter_title, md_to_html
@@ -13,10 +13,12 @@
 #   read_md - прочитать .md файл, вернуть (title, clean_text)
 #   strip_frontmatter - удалить YAML frontmatter
 #   get_frontmatter_title - извлечь заголовок из frontmatter
-#   md_to_html - конвертировать Markdown → HTML
+#   md_to_html - конвертировать Markdown → HTML (с dedent fenced code)
+#   _dedent_fenced_code - убрать отступы перед ``` для корректного парсинга
 # END_MODULE_MAP
 
 import logging
+import re
 
 import markdown
 
@@ -72,12 +74,29 @@ def read_md(rel_path):
 
 
 # START_BLOCK_MD_TO_HTML
+def _dedent_fenced_code(md_text):
+    """Удалить отступы перед ``` линиями, чтобы markdown распознал fenced code blocks."""
+    lines = md_text.split("\n")
+    result = []
+    in_fence = False
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            result.append(stripped)
+        elif in_fence:
+            result.append(stripped)
+        else:
+            result.append(line)
+    return "\n".join(result)
+
+
 def md_to_html(md_text):
     """Конвертировать Markdown → HTML через библиотеку markdown."""
+    dedented = _dedent_fenced_code(md_text)
     html = markdown.markdown(
-        md_text,
-        extensions=["tables", "fenced_code", "toc", "codehilite"],
-        extension_defaults={"codehilite": {"guess_lang": False}},
+        dedented,
+        extensions=["tables", "fenced_code", "toc"],
     )
     logger.debug("[Parser][md_to_html][BLOCK_MD_TO_HTML] output_len=%d", len(html))
     return html

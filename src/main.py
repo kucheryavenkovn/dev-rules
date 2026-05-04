@@ -1,5 +1,5 @@
 # FILE: src/main.py
-# VERSION: 2.0.1
+# VERSION: 2.1.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Точка входа генератора Word-документа с GRACE-разметкой
 #   SCOPE: main — сборка документа: титульная → оглавление → главы → GRACE инъекция → валидация
@@ -28,6 +28,7 @@ from docx.oxml import OxmlElement
 from src.config import (
     setup_styles, classify_module_type, DOC_NAME, DOC_VERSION,
     OUTPUT_PATH, GRACE_VERSION, DOCS_DIR, derive_module_id,
+    make_bookmark_name,
 )
 from src.parser import read_md, md_to_html
 from src.sidebar_order import build_chapter_order
@@ -204,6 +205,11 @@ def main():
         resolved.append(ch.with_module_id(mid))
     chapters = resolved
 
+    bookmark_map = {}
+    for ch in chapters:
+        if ch.rel_path:
+            bookmark_map[ch.rel_path] = make_bookmark_name(ch.module_id)
+
     toc_heading = doc.add_heading("Оглавление", level=1)
 
     for ch in chapters:
@@ -274,7 +280,7 @@ def main():
                     img_base_dir = str(source_dir) if source_dir != DOCS_DIR else str(DOCS_DIR)
                 else:
                     img_base_dir = str(DOCS_DIR)
-                render_html_to_doc(doc, html, depth_offset=depth, img_base_dir=img_base_dir)
+                render_html_to_doc(doc, html, depth_offset=depth, img_base_dir=img_base_dir, bookmark_map=bookmark_map, chapter_rel_path=ch.rel_path)
                 para_counter += len(html.split("<p>")) + len(html.split("<h")) + len(html.split("<li>"))
 
         else:

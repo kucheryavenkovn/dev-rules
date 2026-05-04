@@ -1,5 +1,5 @@
 # FILE: src/renderer.py
-# VERSION: 1.2.1
+# VERSION: 1.3.0
 # START_MODULE_CONTRACT
 #   PURPOSE: Рендеринг HTML-контента в элементы docx: параграфы, таблицы, списки, код, изображения
 #   SCOPE: render_html_to_doc, render_paragraph, render_table, render_list, render_image
@@ -10,11 +10,13 @@
 # END_MODULE_CONTRACT
 #
 # START_MODULE_MAP
-#   render_html_to_doc - главная функция рендеринга HTML → docx
-#   render_paragraph - рендеринг параграфа с inline-стилями
+#   render_html_to_doc - главная функция рендеринга HTML → docx (bookmark_map, chapter_rel_path)
+#   render_paragraph - рендеринг параграфа с inline-стилями и внутренними ссылками
 #   render_table - рендеринг HTML таблицы в Word таблицу
 #   render_list - рендеринг списка с вложенностью (явная нумерация, перезапуск)
 #   render_image - встраивание изображения из docs/ в docx
+#   _resolve_internal_link - разрешить .md href → GRACE bookmark name
+#   _add_hyperlink - создать w:hyperlink с url (external) или anchor (internal)
 # END_MODULE_MAP
 
 import logging
@@ -26,12 +28,45 @@ from src.types import ChapterInfo
 
 from docx.shared import Pt, Cm, RGBColor, Inches
 from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 logger = logging.getLogger(__name__)
 
 
+def _add_hyperlink(paragraph, text, url=None, anchor=None):
+    """Добавить кликабельную гиперссылку в параграф docx."""
+    hyperlink = OxmlElement("w:hyperlink")
+    if anchor:
+        hyperlink.set(qn("w:anchor"), anchor)
+    elif url:
+        part = paragraph.part
+        r_id = part.relate_to(
+            url,
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+            is_external=True,
+        )
+        hyperlink.set(qn("r:id"), r_id)
+
+    new_run = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+
+    c = OxmlElement("w:color")
+    c.set(qn("w:val"), "0563C1")
+    rPr.append(c)
+
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "single")
+    rPr.append(u)
+
+    new_run.append(rPr)
+    new_run.text = text
+    hyperlink.append(new_run)
+    paragraph._p.append(hyperlink)
+
+
 # START_BLOCK_RENDER_HTML
-def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0, img_base_dir=None):
+def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0, img_base_dir=None, bookmark_map=None, chapter_rel_path=None):
     """Рендерить HTML-контент в параграфы docx."""
     if _recursion_depth > 5:
         return
@@ -55,7 +90,7 @@ def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0, im
                 doc.add_heading(text, level=level)
 
         elif tag == "p":
-            render_paragraph(doc, element, img_base_dir=img_base_dir)
+            render_paragraph(doc, element, img_base_dir=img_base_dir, bookmark_map=bookmark_map, chapter_rel_path=chapter_rel_path)
 
         elif tag == "pre":
             code_el = element.find("code")
@@ -86,7 +121,7 @@ def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0, im
             pass
 
         elif tag in ("div", "section"):
-            render_html_to_doc(doc, str(element), depth_offset, _recursion_depth + 1, img_base_dir=img_base_dir)
+            render_html_to_doc(doc, str(element), depth_offset, _recursion_depth + 1, img_base_dir=img_base_dir, bookmark_map=bookmark_map, chapter_rel_path=chapter_rel_path)
 
         elif tag == "img":
             src = element.get("src", "")
@@ -103,7 +138,25 @@ def render_html_to_doc(doc, html_content, depth_offset=0, _recursion_depth=0, im
 
 
 # START_BLOCK_RENDER_PARAGRAPH
-def render_paragraph(doc, element, img_base_dir=None):
+def _resolve_internal_link(href, bookmark_map, chapter_rel_path=None):
+    """Разрешить внутреннюю ссылку в bookmark name."""
+    if not bookmark_map:
+        return None
+    clean = href.lstrip("./")
+    if "#" in clean:
+        clean = clean.split("#")[0]
+    if clean in bookmark_map:
+        return bookmark_map[clean]
+    if chapter_rel_path:
+        from pathlib import PurePosixPath
+        base = PurePosixPath(chapter_rel_path).parent
+        resolved = str(base / clean).replace("\\", "/")
+        if resolved in bookmark_map:
+            return bookmark_map[resolved]
+    return None
+
+
+def render_paragraph(doc, element, img_base_dir=None, bookmark_map=None, chapter_rel_path=None):
     """Рендерить HTML параграф с inline-стилями."""
     p = doc.add_paragraph()
     for child in element.children:
@@ -119,14 +172,24 @@ def render_paragraph(doc, element, img_base_dir=None):
             r.italic = True
         elif child.name == "code":
             r = p.add_run(child.get_text())
-            r.font.name = "Consolas"
-            r.font.size = Pt(9)
+            r.font.name = "Courier New"
+            r.font.size = Pt(8)
         elif child.name == "a":
             text = child.get_text()
+            href = child.get("href", "")
             if text.strip():
-                r = p.add_run(text)
-                r.font.color.rgb = RGBColor(0x05, 0x63, 0xC1)
-                r.underline = True
+                if href.startswith("http://") or href.startswith("https://"):
+                    _add_hyperlink(p, text, url=href)
+                else:
+                    anchor = _resolve_internal_link(href, bookmark_map, chapter_rel_path)
+                    if anchor:
+                        _add_hyperlink(p, text, anchor=anchor)
+                        logger.debug("[Renderer][render_paragraph][BLOCK_RENDER_LINK] mode=anchor target=%s href=%s", anchor, href)
+                    else:
+                        r = p.add_run(text)
+                        r.font.color.rgb = RGBColor(0x05, 0x63, 0xC1)
+                        r.underline = True
+                        logger.debug("[Renderer][render_paragraph][BLOCK_RENDER_LINK] mode=styled href=%s", href)
         elif child.name == "br":
             pass
         elif child.name == "img":
@@ -145,19 +208,104 @@ def render_list(doc, element, ordered=False, level=0):
     """Рендерить HTML список."""
     items = element.find_all("li", recursive=False)
     for idx, li in enumerate(items):
-        text = li.get_text(strip=True)
-        indent = Cm(0.5 * (level + 1))
-        if ordered:
-            p = doc.add_paragraph(f"{idx + 1}. {text}")
-        else:
-            p = doc.add_paragraph(text)
-        p.paragraph_format.left_indent = indent
-        p.style = doc.styles["Normal"]
-
+        code_blocks = li.find_all("pre", recursive=False)
+        inline_code = li.find_all("code", recursive=False)
         sublists = li.find_all(["ul", "ol"], recursive=False)
+        has_code_content = code_blocks or inline_code
+
+        if has_code_content:
+            for child in li.children:
+                if isinstance(child, NavigableString):
+                    text = str(child).strip()
+                    if text:
+                        indent = Cm(0.5 * (level + 1))
+                        prefix = f"{idx + 1}. " if ordered else ""
+                        p = doc.add_paragraph(f"{prefix}{text}")
+                        p.paragraph_format.left_indent = indent
+                        p.style = doc.styles["Normal"]
+                elif child.name == "pre":
+                    code_el = child.find("code")
+                    text = code_el.get_text() if code_el else child.get_text()
+                    for line in text.splitlines():
+                        p = doc.add_paragraph(line)
+                        p.style = doc.styles["Code"]
+                        pf = p.paragraph_format
+                        pf.space_before = Pt(0)
+                        pf.space_after = Pt(0)
+                        pf.left_indent = Cm(0.5 * (level + 2))
+                elif child.name in ("ul", "ol"):
+                    pass
+                elif child.name == "code":
+                    p = doc.add_paragraph(child.get_text())
+                    p.style = doc.styles["Code"]
+                    pf = p.paragraph_format
+                    pf.space_before = Pt(0)
+                    pf.space_after = Pt(0)
+                    pf.left_indent = Cm(0.5 * (level + 2))
+                elif child.name == "p":
+                    text_parts = []
+                    runs_data = []
+                    for sub in child.children:
+                        if isinstance(sub, NavigableString):
+                            t = str(sub)
+                            if t.strip():
+                                runs_data.append({"text": t, "code": False})
+                        elif sub.name == "code":
+                            runs_data.append({"text": sub.get_text(), "code": True})
+                        else:
+                            t = sub.get_text()
+                            if t.strip():
+                                runs_data.append({"text": t, "code": False})
+                    indent = Cm(0.5 * (level + 1))
+                    prefix = f"{idx + 1}. " if ordered else ""
+                    p = doc.add_paragraph()
+                    p.paragraph_format.left_indent = indent
+                    p.style = doc.styles["Normal"]
+                    if runs_data:
+                        p.add_run(prefix)
+                        for rd in runs_data:
+                            r = p.add_run(rd["text"])
+                            if rd["code"]:
+                                r.font.name = "Courier New"
+                                r.font.size = Pt(8)
+                else:
+                    text = child.get_text(strip=True)
+                    if text:
+                        indent = Cm(0.5 * (level + 1))
+                        prefix = f"{idx + 1}. " if ordered else ""
+                        p = doc.add_paragraph(f"{prefix}{text}")
+                        p.paragraph_format.left_indent = indent
+                        p.style = doc.styles["Normal"]
+        else:
+            text = li.get_text(strip=True)
+            indent = Cm(0.5 * (level + 1))
+            if ordered:
+                p = doc.add_paragraph(f"{idx + 1}. {text}")
+            else:
+                p = doc.add_paragraph(text)
+            p.paragraph_format.left_indent = indent
+            p.style = doc.styles["Normal"]
+
         for sub in sublists:
             render_list(doc, sub, ordered=(sub.name == "ol"), level=level + 1)
 # END_BLOCK_RENDER_LIST
+
+
+def _render_cell_content(cell_element):
+    """Извлечь runs из HTML-ячейки с учётом inline <code>."""
+    runs = []
+    for child in cell_element.children:
+        if isinstance(child, NavigableString):
+            text = str(child)
+            if text.strip():
+                runs.append({"text": text, "code": False})
+        elif child.name == "code":
+            runs.append({"text": child.get_text(), "code": True})
+        else:
+            text = child.get_text()
+            if text.strip():
+                runs.append({"text": text, "code": False})
+    return runs
 
 
 # START_BLOCK_RENDER_TABLE
@@ -181,19 +329,31 @@ def render_table(doc, element):
 
     for i, row in enumerate(rows):
         cells = row.find_all(["td", "th"])
+        is_header = row.find("th") is not None
         for j, cell in enumerate(cells):
-            if j < num_cols:
+            if j >= num_cols:
+                continue
+            table_cell = table.rows[i].cells[j]
+            table_cell.text = ""
+            p = table_cell.paragraphs[0]
+            has_code = cell.find("code") is not None
+            if has_code:
+                runs_data = _render_cell_content(cell)
+                for rd in runs_data:
+                    r = p.add_run(rd["text"])
+                    r.font.size = Pt(10)
+                    if is_header or cell.name == "th":
+                        r.bold = True
+                    if rd["code"]:
+                        r.font.name = "Courier New"
+                        r.font.size = Pt(8)
+            else:
                 text = cell.get_text(strip=True)
-                table.rows[i].cells[j].text = text
-                if row.find("th") or cell.name == "th":
-                    for p in table.rows[i].cells[j].paragraphs:
-                        for run in p.runs:
-                            run.bold = True
-                            run.font.size = Pt(10)
-                else:
-                    for p in table.rows[i].cells[j].paragraphs:
-                        for run in p.runs:
-                            run.font.size = Pt(10)
+                p.text = text
+                for run in p.runs:
+                    run.font.size = Pt(10)
+                    if is_header or cell.name == "th":
+                        run.bold = True
 
     logger.info("[Renderer][render_table][BLOCK_RENDER_TABLE] rows=%d cols=%d", len(rows), num_cols)
     doc.add_paragraph()
@@ -225,5 +385,5 @@ def render_image(doc, src, img_base_dir=None):
 # END_BLOCK_RENDER_IMAGE
 
 # START_CHANGE_SUMMARY
-#   LAST_CHANGE: v1.2.1 — render_paragraph now handles <img> children inside <p> tags, passing img_base_dir through
+#   LAST_CHANGE: v1.3.0 — render_html_to_doc accepts chapter_rel_path, passes to render_paragraph for internal cross-reference resolution via bookmark_map
 # END_CHANGE_SUMMARY

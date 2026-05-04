@@ -155,7 +155,7 @@ class TestRenderParagraph:
         render_paragraph(doc, p_el)
 
         last_para = doc.paragraphs[-1]
-        code_runs = [r for r in last_para.runs if r.font.name == "Consolas"]
+        code_runs = [r for r in last_para.runs if r.font.name == "Courier New"]
         assert len(code_runs) >= 1
 
     def test_link_inline(self):
@@ -167,8 +167,11 @@ class TestRenderParagraph:
         render_paragraph(doc, p_el)
 
         last_para = doc.paragraphs[-1]
-        link_runs = [r for r in last_para.runs if r.underline]
-        assert len(link_runs) >= 1
+        hyperlinks = last_para._p.findall(
+            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}hyperlink"
+        )
+        assert len(hyperlinks) >= 1
+        assert hyperlinks[0].text == "click here"
 
 
 class TestRenderList:
@@ -281,6 +284,99 @@ class TestRenderHtmlToDoc:
 
         assert len(doc.tables) == 1
         assert any(p.style.name == "Code" for p in doc.paragraphs)
+
+
+class TestInternalCrossReference:
+    def test_internal_link_to_bookmark(self):
+        doc = _make_doc()
+        html = '<p><a href="./metadata/roles.md">Роли</a></p>'
+        bookmark_map = {"metadata/roles.md": "GRACE_M-ROLES"}
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        p_el = soup.find("p")
+        render_paragraph(doc, p_el, bookmark_map=bookmark_map)
+
+        last_para = doc.paragraphs[-1]
+        hyperlinks = last_para._p.findall(
+            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}hyperlink"
+        )
+        assert len(hyperlinks) == 1
+        assert hyperlinks[0].get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}anchor") == "GRACE_M-ROLES"
+        assert hyperlinks[0].text == "Роли"
+
+    def test_internal_link_not_found_fallback_styled(self):
+        doc = _make_doc()
+        html = '<p><a href="./nonexistent.md">Unknown</a></p>'
+        bookmark_map = {"metadata/roles.md": "GRACE_M-ROLES"}
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        p_el = soup.find("p")
+        render_paragraph(doc, p_el, bookmark_map=bookmark_map)
+
+        last_para = doc.paragraphs[-1]
+        hyperlinks = last_para._p.findall(
+            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}hyperlink"
+        )
+        assert len(hyperlinks) == 0
+        assert any(r.text == "Unknown" for r in last_para.runs)
+
+    def test_external_link_unchanged(self):
+        doc = _make_doc()
+        html = '<p><a href="https://example.com">external</a></p>'
+        bookmark_map = {"metadata/roles.md": "GRACE_M-ROLES"}
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        p_el = soup.find("p")
+        render_paragraph(doc, p_el, bookmark_map=bookmark_map)
+
+        last_para = doc.paragraphs[-1]
+        hyperlinks = last_para._p.findall(
+            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}hyperlink"
+        )
+        assert len(hyperlinks) == 1
+        has_rid = any("id" in attr for attr in hyperlinks[0].attrib)
+        assert has_rid
+        assert hyperlinks[0].text == "external"
+
+    def test_internal_link_relative_from_subdir(self):
+        doc = _make_doc()
+        html = '<p><a href="../begin.md">Начало</a></p>'
+        bookmark_map = {"begin.md": "GRACE_M-BEGIN"}
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        p_el = soup.find("p")
+        render_paragraph(doc, p_el, bookmark_map=bookmark_map, chapter_rel_path="cicd/README.md")
+
+        last_para = doc.paragraphs[-1]
+        hyperlinks = last_para._p.findall(
+            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}hyperlink"
+        )
+        assert len(hyperlinks) == 1
+        assert hyperlinks[0].get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}anchor") == "GRACE_M-BEGIN"
+
+    def test_internal_link_via_render_html_to_doc(self):
+        doc = _make_doc()
+        html = '<p>См. <a href="./metadata/roles.md">Роли</a></p>'
+        bookmark_map = {"metadata/roles.md": "GRACE_M-ROLES"}
+        render_html_to_doc(doc, html, bookmark_map=bookmark_map)
+
+        last_para = doc.paragraphs[-1]
+        hyperlinks = last_para._p.findall(
+            ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}hyperlink"
+        )
+        assert len(hyperlinks) == 1
+        assert hyperlinks[0].get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}anchor") == "GRACE_M-ROLES"
+
+    def test_no_bookmark_map_no_crash(self):
+        doc = _make_doc()
+        html = '<p><a href="./metadata/roles.md">Роли</a></p>'
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        p_el = soup.find("p")
+        render_paragraph(doc, p_el)
+
+        last_para = doc.paragraphs[-1]
+        assert any("Роли" in (r.text or "") for r in last_para.runs)
 
 
 class TestListNumberingRestart:
